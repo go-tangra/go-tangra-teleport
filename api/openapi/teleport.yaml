@@ -954,7 +954,7 @@ paths:
       responses:
         '200': { description: one page of roles, content: { application/json: { schema: { $ref: '#/components/schemas/RolePage' } } } }
         default: { $ref: '#/components/responses/Error' }
-  /api/teleport/v1/clusters/{id}/roles:preview:
+  /api/teleport/v1/clusters/{id}/roles/preview:
     parameters: [{ $ref: '#/components/parameters/id' }]
     post:
       operationId: previewTeleportRole
@@ -1339,7 +1339,7 @@ paths:
       responses:
         '201': { description: provisioned, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } } } }
         default: { $ref: '#/components/responses/Error' }
-  /api/teleport/v1/clusters/{id}/provisioning:sync:
+  /api/teleport/v1/clusters/{id}/provisioning/sync:
     parameters: [{ $ref: '#/components/parameters/id' }]
     post:
       operationId: syncTeleportProvisioning

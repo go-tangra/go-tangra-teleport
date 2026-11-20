@@ -126,7 +126,7 @@ definition, and `<revision>` comes from `GET /clusters/{id}/roles/support`:
 tget "$API/clusters/$CLUSTER/roles/support"        # {yaml, revision, preset}
 
 jq -n --rawfile y support.yaml --arg rev '<revision>' '{yaml: $y, revision: $rev}' |
-  tsend -X POST "$API/clusters/$CLUSTER/roles:preview" --data-binary @-
+  tsend -X POST "$API/clusters/$CLUSTER/roles/preview" --data-binary @-
 # {"valid": true, "errors": [], "diff": "--- current\n+++ proposed\n@@ ..."}
 
 jq -n --rawfile y support.yaml --arg rev '<revision>' '{yaml: $y, revision: $rev}' |

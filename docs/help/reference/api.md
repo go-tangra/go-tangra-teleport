@@ -89,7 +89,7 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET /clusters/{id}/users` (`?q=&next=&page_size=`) | `users:read` |
 | `POST /clusters/{id}/users`, `PUT` and `DELETE /clusters/{id}/users/{name}`, `POST /clusters/{id}/users/{name}/reset` | `users:manage` |
 | `GET /clusters/{id}/roles`, `GET /clusters/{id}/roles/{name}` | `roles:read` |
-| `POST /clusters/{id}/roles:preview`, `PUT` and `DELETE /clusters/{id}/roles/{name}` | `roles:manage` |
+| `POST /clusters/{id}/roles/preview`, `PUT` and `DELETE /clusters/{id}/roles/{name}` | `roles:manage` |
 | `GET /clusters/{id}/locks` | `locks:read` |
 | `POST /clusters/{id}/locks`, `DELETE /clusters/{id}/locks/{name}` | `locks:manage` |
 | `GET` and `POST /clusters/{id}/tokens`, `DELETE /clusters/{id}/tokens/{tid}` | `tokens:manage` |
@@ -101,7 +101,7 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET /alert-rules` | `alerts:read` |
 | `POST /alert-rules`, `PUT` and `DELETE /alert-rules/{id}` | `alerts:manage` |
 | `GET /clusters/{id}/mappings`, `GET /clusters/{id}/managed-users` | `users:read` |
-| `POST /clusters/{id}/mappings`, `PUT` and `DELETE /clusters/{id}/mappings/{mid}`, `POST /clusters/{id}/managed-users`, `POST /clusters/{id}/provisioning:sync` | `provisioning:manage` |
+| `POST /clusters/{id}/mappings`, `PUT` and `DELETE /clusters/{id}/mappings/{mid}`, `POST /clusters/{id}/managed-users`, `POST /clusters/{id}/provisioning/sync` | `provisioning:manage` |
 | `GET` and `POST /deployments`, `GET`, `PUT` and `DELETE /deployments/{id}`, `GET /deployments/{id}/artifacts/{name}`, `POST /deployments/{id}/checks` | `deployments:manage` |
 
 ## Examples
@@ -143,7 +143,7 @@ tsend -X PUT "$API/clusters/$CLUSTER/users/alice" \
 
 # Preview a role change, then apply it with the same revision.
 jq -n --rawfile y support.yaml '{yaml: $y, revision: "<revision>"}' |
-  tsend -X POST "$API/clusters/$CLUSTER/roles:preview" --data-binary @-
+  tsend -X POST "$API/clusters/$CLUSTER/roles/preview" --data-binary @-
 jq -n --rawfile y support.yaml '{yaml: $y, revision: "<revision>"}' |
   tsend -X PUT "$API/clusters/$CLUSTER/roles/support" --data-binary @-
 

@@ -35,13 +35,13 @@ func TestForgedMembershipRemovalChangesNothing(t *testing.T) {
 	base := "/clusters/" + f.cluster(t, "admin-a")
 	f.mapping(t, base)
 	f.auth.Set(member)
-	if code, s := f.do(t, "POST", base+"/provisioning:sync", "admin-a", nil); code != http.StatusOK || s["created"] != 1.0 {
+	if code, s := f.do(t, "POST", base+"/provisioning/sync", "admin-a", nil); code != http.StatusOK || s["created"] != 1.0 {
 		t.Fatalf("sync: %d %v", code, s)
 	}
 	f.auth.SetListed()
 	for range 3 {
 		f.Advance(8 * 24 * time.Hour)
-		if code, s := f.do(t, "POST", base+"/provisioning:sync", "admin-a", nil); code != http.StatusOK || s["locked"] != 0.0 || s["deleted"] != 0.0 {
+		if code, s := f.do(t, "POST", base+"/provisioning/sync", "admin-a", nil); code != http.StatusOK || s["locked"] != 0.0 || s["deleted"] != 0.0 {
 			t.Fatalf("forged removal: %d %v", code, s)
 		}
 	}
@@ -71,7 +71,7 @@ func TestOperatorCannotManageMappings(t *testing.T) {
 			{"PUT", base + "/mappings/" + mid, map[string]any{"teleport_roles": []string{"editor"}}},
 			{"DELETE", base + "/mappings/" + mid, nil},
 			{"POST", base + "/managed-users", map[string]any{"tangra_user_id": memberID}},
-			{"POST", base + "/provisioning:sync", nil},
+			{"POST", base + "/provisioning/sync", nil},
 		} {
 			if code, m := f.do(t, c.method, c.path, token, c.body); code != http.StatusForbidden || m["reason"] != "forbidden" {
 				t.Errorf("%s %s %s: %d %v", token, c.method, c.path, code, m)
@@ -86,7 +86,7 @@ func TestOperatorCannotManageMappings(t *testing.T) {
 	}
 	// Another tenant's cluster is not found.
 	theirs := "/clusters/" + f.cluster(t, "admin-b")
-	if code, _ := f.do(t, "POST", theirs+"/provisioning:sync", "admin-a", nil); code != http.StatusNotFound {
+	if code, _ := f.do(t, "POST", theirs+"/provisioning/sync", "admin-a", nil); code != http.StatusNotFound {
 		t.Fatalf("cross-tenant sync: %d", code)
 	}
 }
@@ -116,10 +116,10 @@ func TestInviteURLOnlyInTheNotification(t *testing.T) {
 	f.auth.Set(member, provisioning.Member{UserID: "018f3a2b-0000-7000-8000-0000000000c1", Login: "carol", Roles: []string{"operator"}})
 	f.Notify.SetErr(notify.ErrNotDelivered) // the first invites fail: users rolled back
 	f.do(t, "POST", base+"/managed-users", "admin-a", map[string]any{"tangra_user_id": memberID})
-	f.do(t, "POST", base+"/provisioning:sync", "admin-a", nil)
+	f.do(t, "POST", base+"/provisioning/sync", "admin-a", nil)
 	f.Notify.SetErr(nil)
 	f.do(t, "POST", base+"/managed-users", "admin-a", map[string]any{"tangra_user_id": memberID})
-	f.do(t, "POST", base+"/provisioning:sync", "admin-a", nil)
+	f.do(t, "POST", base+"/provisioning/sync", "admin-a", nil)
 	f.do(t, "GET", base+"/managed-users", "viewer-a", nil)
 	urls := f.Teleport.IssuedURLs()
 	if len(urls) != 5 {

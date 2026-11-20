@@ -72,7 +72,7 @@ deleted: `403 forbidden` with `detail.guard = "self_identity"`.
 |---|---|---|
 | `GET /clusters/{id}/roles` | roles:read | `?next=&page_size=` → `{items, next?}`; items: `name, preset (bool), revision` |
 | `GET /clusters/{id}/roles/{name}` | roles:read | `{yaml, revision, preset}`; `yaml` is the normalized form (sorted keys, defaults applied, no revision) |
-| `POST /clusters/{id}/roles:preview` | roles:manage | `{yaml (≤ 64 KiB), revision?}` → `200 {valid, errors[], diff}`, with no side effects and no audit row. An invalid definition, a stale `revision`, or a missing `revision` for an existing role is `valid: false` with an explanation in `errors` |
+| `POST /clusters/{id}/roles/preview` | roles:manage | `{yaml (≤ 64 KiB), revision?}` → `200 {valid, errors[], diff}`, with no side effects and no audit row. An invalid definition, a stale `revision`, or a missing `revision` for an existing role is `valid: false` with an explanation in `errors` |
 | `PUT /clusters/{id}/roles/{name}` | roles:manage | `{yaml, revision?}`; an empty `revision` creates the role (`409 conflict` if it exists), otherwise updates it if `revision` is current (`409 conflict` if stale). `metadata.name` must match the path. An invalid definition is `422 validation_failed` with `detail {field: "yaml", message}`; a Teleport refusal is `422 teleport_rejected` with `detail.message` (Teleport's first line, bounded, no stack trace) |
 | `DELETE /clusters/{id}/roles/{name}` | roles:manage | `403 forbidden` for preset roles (`detail.guard = "preset_role"`) and for roles held by the management identity (`detail.guard = "management_role"`) |
 
@@ -116,7 +116,7 @@ Guard refusals (`403 forbidden`) carry `{reason: "forbidden", message, detail: {
 | `DELETE /clusters/{id}/mappings/{mid}` | provisioning:manage | Users it provisioned are locked at the next sync when no other mapping matches |
 | `GET /clusters/{id}/managed-users` | users:read | `{items}`: `id, tangra_user_id, teleport_username, state, applied_roles, applied_logins, locked, deprovision_after?, last_synced_at?, created_at` |
 | `POST /clusters/{id}/managed-users` | provisioning:manage | `{tangra_user_id}`: re-verifies the member with auth and provisions now → `201` managed user; the invite goes through notification and is never in a response. Not a member or no matching mapping: `422 validation_failed`; already managed: `409 conflict` (a user in `error` is retried instead) |
-| `POST /clusters/{id}/provisioning:sync` | provisioning:manage | Runs a sync now (including deletions whose grace period has passed); returns `{created, updated, locked, unlocked, deleted, errors}` |
+| `POST /clusters/{id}/provisioning/sync` | provisioning:manage | Runs a sync now (including deletions whose grace period has passed); returns `{created, updated, locked, unlocked, deleted, errors}` |
 
 Provisioning refusals for a missing dependency are `503 dependency_unavailable`
 with `detail.dependency` = `auth` (the tenant's membership cannot be read;

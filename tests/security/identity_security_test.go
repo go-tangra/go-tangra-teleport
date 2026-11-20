@@ -28,7 +28,7 @@ func identityWrites(base string) []route {
 		{"PUT", base + "/users/alice", map[string]any{"roles": []string{"editor"}, "revision": "u2"}},
 		{"POST", base + "/users/alice/reset", nil},
 		{"DELETE", base + "/users/alice", nil},
-		{"POST", base + "/roles:preview", map[string]any{"yaml": roleYAML}},
+		{"POST", base + "/roles/preview", map[string]any{"yaml": roleYAML}},
 		{"PUT", base + "/roles/dev", map[string]any{"yaml": roleYAML}},
 		{"DELETE", base + "/roles/access", nil},
 		{"POST", base + "/locks", map[string]any{"target_kind": "user", "target": "alice", "reason": "incident"}},
@@ -54,7 +54,7 @@ func TestOperatorCannotManageRoles(t *testing.T) {
 	f := newFixture(t)
 	base := "/clusters/" + f.cluster(t, "admin-a")
 	for _, c := range []route{
-		{"POST", base + "/roles:preview", map[string]any{"yaml": roleYAML}},
+		{"POST", base + "/roles/preview", map[string]any{"yaml": roleYAML}},
 		{"PUT", base + "/roles/dev", map[string]any{"yaml": roleYAML}},
 		{"PUT", base + "/roles/access", map[string]any{"yaml": roleYAML, "revision": "r1"}},
 		{"DELETE", base + "/roles/access", nil},
