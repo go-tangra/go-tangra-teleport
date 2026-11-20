@@ -40,6 +40,7 @@ import (
 
 	authv1 "github.com/go-tangra/go-tangra-auth/sdk/v4/api/proto/auth/v1"
 	"github.com/go-tangra/go-tangra-auth/sdk/v4/pkg/authclient"
+	inventoryv1 "github.com/go-tangra/go-tangra-inventory/sdk/v4/api/proto/inventory/v1"
 	"github.com/go-tangra/go-tangra-notification/sdk/v4/pkg/notifyclient"
 	"github.com/go-tangra/go-tangra-portal/sdk/v4/pkg/gatewayclient"
 
@@ -52,6 +53,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/clusters"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/config"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/deploy"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/enroll"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/events"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/grpcapi"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/httpapi"
@@ -90,9 +92,12 @@ type Options struct {
 	Lease    lease.KV             // worker-lease override (tests: lease.NewMemory())
 	Dial     teleportapi.DialFunc // whole pool dial override (tests: return a teleportapi.Fake)
 	Notify   notify.Notifier      // notification override (tests: notify.NewFake())
-	Freya    []freya.Option
-	Migrate  bool
-	Remote   fs.FS // built federated UI remote (nil serves no remote)
+	// Inventory overrides the inventory TeleportJoinDeliveryService dial
+	// (spec 002; tests: a fake).
+	Inventory enroll.Inventory
+	Freya     []freya.Option
+	Migrate   bool
+	Remote    fs.FS // built federated UI remote (nil serves no remote)
 
 	// dialer replaces teleportapi.Dial under the default pool dial and the
 	// clusters verification dial (tests).
@@ -133,6 +138,7 @@ type App struct {
 	Locks       *locks.Service     // US2
 	Tokens      *tokens.Service    // US3
 	Resources   *resources.Service // US3
+	Enroll      *enroll.Service    // spec 002: inventory-agent SSH enrollment
 	AuditLog    *auditlog.Service  // US4: Teleport events and sessions, module audit trail
 	AlertRules  *alerts.Rules      // US4
 	AlertEngine *alerts.Engine     // US4: the leased alert poller
@@ -210,10 +216,10 @@ func Build(ctx context.Context, cfg config.Config, o Options) (a *App, err error
 	}
 	a.HTTP.Register(httpapi.Deps{Health: a.health, Hub: a.Hub, Clusters: a.Clusters, Users: a.Users, Roles: a.Roles, Locks: a.Locks,
 		Tokens: a.Tokens, Resources: a.Resources, Audit: a.AuditLog, Alerts: a.AlertRules, Provisioning: a.Provisioning,
-		Deployments: a.Deployments})
+		Deployments: a.Deployments, Enroll: a.Enroll})
 	// Mesh gRPC surface (teleport.v1, SPIFFE mTLS; deploy/policy.yaml) and
 	// the scheduler task executor (svc/scheduler only).
-	grpcapi.Register(a.Freya.GRPC(), grpcapi.Deps{Resources: a.Resources, Audit: a.Audit})
+	grpcapi.Register(a.Freya.GRPC(), grpcapi.Deps{Resources: a.Resources, Enroll: a.Enroll, Audit: a.Audit})
 	a.wireScheduler()
 	// Help bundle for the gateway only (its verified service identity, behind
 	// the Freya security chain); mounted before the catch-all, which would
@@ -422,6 +428,20 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 	sweep := &resources.Sweep{Repo: a.Repo, Events: a.Events, Log: a.Log, Alerter: lateAlerter{a}}
 	a.AddLeasedWorker("offline-sweep", sweep.Run)
 
+	// Spec 002: enrolling inventory hosts as SSH nodes through their
+	// inventory agent; inventory is dialled lazily (enrollment answers
+	// dependency_unavailable while it is down) and a leased sweep follows
+	// unfinished enrollments.
+	inv := o.Inventory
+	if inv == nil {
+		conn := &lazyConn{app: a, service: InventoryService}
+		inv = func(context.Context) (inventoryv1.TeleportJoinDeliveryServiceClient, error) {
+			return inventoryv1.NewTeleportJoinDeliveryServiceClient(conn), nil
+		}
+	}
+	a.Enroll = &enroll.Service{Clusters: a.Clusters, Repo: a.Repo, Inventory: inv, Audit: a.Audit, Events: a.Events}
+	a.AddLeasedWorker("enrollment-sweep", (&enroll.Sweep{Service: a.Enroll, Log: a.Log}).Run)
+
 	// US4: event and session search, the module audit trail, alert rules
 	// and the leased alert poller. The poller also delivers the module
 	// conditions of the sweep (replacing NotifyAlerter), de-duplicated in
@@ -449,6 +469,9 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 	// Phase 9: the tenant configuration backup (credential references only).
 	a.Backup = &backup.Service{Repo: a.Repo, Authz: a.Authz, Audit: a.Audit}
 }
+
+// InventoryService is the mesh name of the inventory module.
+const InventoryService = "inventory"
 
 // lateAlerter resolves App.Alerter at alert time, so a later story can
 // replace it after the sweep is built.

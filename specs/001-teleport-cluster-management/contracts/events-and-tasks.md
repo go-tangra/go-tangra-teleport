@@ -13,6 +13,7 @@ The envelope follows the framework `events` package: `{id, type, tenant_id, time
 | `teleport.role.changed` / `.deleted` | `{cluster_id, role}` |
 | `teleport.lock.created` / `.removed` | `{cluster_id, lock_name, target_kind}` |
 | `teleport.token.created` / `.revoked` | `{cluster_id, token_id, resource_type}` |
+| `teleport.enrollment.changed` | `{cluster_id, enrollment_id, host_id, state}` (spec 002) |
 | `teleport.resource.online` / `.offline` / `.flagged` | `{cluster_id, resource_id, kind}` |
 | `teleport.resource.linked` / `.unlinked` | `{resource_id, target_module, target_id}` |
 | `teleport.provisioning.changed` | `{cluster_id, tangra_user_id, state}` |

@@ -37,6 +37,7 @@ func Run(t *testing.T, newStore Factory) {
 		"alert rules":   testAlertRules,
 		"alert state":   testAlertState,
 		"drafts":        testDrafts,
+		"enrollments":   testEnrollments,
 		"cascade":       testCascade,
 		"audit":         testAudit,
 		"audit list":    testAuditList,
@@ -695,4 +696,73 @@ func testAuditList(t *testing.T, s repo.Store) {
 	if _, total, _ = s.ListAudit(ctx, TenantB, repo.AuditQuery{}); total != 1 {
 		t.Fatalf("tenant B = %d", total)
 	}
+}
+
+func testEnrollments(t *testing.T, s repo.Store) {
+	c := NewCluster(TenantA, "c")
+	must(t, s.CreateCluster(ctx, c))
+	now := base()
+	host := store.NewID()
+	e := repo.Enrollment{ID: store.NewID(), TenantID: TenantA, ClusterID: c.ID, HostID: host, Hostname: "web-1", State: repo.EnrollPending,
+		ExpiresAt: now.Add(24 * time.Hour), CreatedBy: "u", CreatedAt: now, UpdatedAt: now}
+	must(t, s.CreateEnrollment(ctx, e))
+	wantErr(t, s.CreateEnrollment(ctx, e), repo.ErrConflict)
+	other := e
+	other.ID, other.TenantID = store.NewID(), TenantB
+	wantErr(t, s.CreateEnrollment(ctx, other), repo.ErrNotFound) // another tenant's cluster
+	got, err := s.GetEnrollment(ctx, TenantA, e.ID)
+	must(t, err)
+	if got.HostID != host || got.State != repo.EnrollPending || got.Hostname != "web-1" || !got.ExpiresAt.Equal(e.ExpiresAt) {
+		t.Fatalf("enrollment = %+v", got)
+	}
+	_, err = s.GetEnrollment(ctx, TenantB, e.ID)
+	wantErr(t, err, repo.ErrNotFound)
+
+	e.State, e.ItemID = repo.EnrollDelivered, "item-1"
+	got, err = s.UpdateEnrollment(ctx, e)
+	must(t, err)
+	if got.State != repo.EnrollDelivered || got.ItemID != "item-1" || got.Renders != 0 {
+		t.Fatalf("updated = %+v", got)
+	}
+	cross := e
+	cross.TenantID = TenantB
+	_, err = s.UpdateEnrollment(ctx, cross)
+	wantErr(t, err, repo.ErrNotFound)
+
+	for i := 1; i <= 2; i++ {
+		got, err = s.AddEnrollmentRender(ctx, TenantA, e.ID, 2)
+		must(t, err)
+		if got.Renders != i {
+			t.Fatalf("renders = %d, want %d", got.Renders, i)
+		}
+	}
+	_, err = s.AddEnrollmentRender(ctx, TenantA, e.ID, 2)
+	wantErr(t, err, repo.ErrConflict)
+	_, err = s.AddEnrollmentRender(ctx, TenantB, e.ID, 5)
+	wantErr(t, err, repo.ErrNotFound)
+
+	done := repo.Enrollment{ID: store.NewID(), TenantID: TenantA, ClusterID: c.ID, HostID: store.NewID(), State: repo.EnrollJoined,
+		ExpiresAt: now.Add(48 * time.Hour), CreatedAt: now.Add(time.Minute)}
+	must(t, s.CreateEnrollment(ctx, done))
+	list, err := s.ListEnrollments(ctx, TenantA, c.ID)
+	must(t, err)
+	if len(list) != 2 || list[0].ID != done.ID {
+		t.Fatalf("list = %+v", list)
+	}
+	active, err := s.ListActiveEnrollments(ctx, 10)
+	must(t, err)
+	if len(active) != 2 { // e, and done (joined, unlinked, not expired)
+		t.Fatalf("active = %+v", active)
+	}
+	done.LinkID = store.NewID()
+	_, err = s.UpdateEnrollment(ctx, done)
+	must(t, err)
+	active, err = s.ListActiveEnrollments(ctx, 10)
+	must(t, err)
+	if len(active) != 1 || active[0].ID != e.ID {
+		t.Fatalf("active = %+v", active)
+	}
+	must(t, s.DeleteCluster(ctx, TenantA, c.ID))
+	_, err = s.GetEnrollment(ctx, TenantA, e.ID)
+	wantErr(t, err, repo.ErrNotFound)
 }

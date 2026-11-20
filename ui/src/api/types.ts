@@ -392,3 +392,58 @@ export interface Draft extends Omit<DraftInput, 'registered_cluster_id'> {
   created_at: string
   updated_at: string
 }
+
+// Spec 002: inventory hosts enrolled as SSH nodes through their agent.
+export type EnrollmentState =
+  | 'pending' | 'delivered' | 'fetched' | 'installing' | 'joined'
+  | 'failed' | 'unsupported' | 'superseded' | 'expired' | 'cancelled'
+
+export type Enrollment = {
+  id: string
+  cluster_id: string
+  host_id: string
+  hostname: string
+  state: EnrollmentState
+  reason?: string | undefined
+  node_host_uuid?: string | undefined
+  link_id?: string | undefined
+  agent_online?: boolean | undefined
+  created_by: string
+  created_at: string
+  updated_at: string
+  expires_at: string
+}
+
+export type EnrollmentPage = {
+  items: Enrollment[]
+  stale: boolean
+}
+
+export type EnrollmentTarget = {
+  host_id: string
+  hostname: string
+  os_name?: string | undefined
+  os_version?: string | undefined
+  os_arch?: string | undefined
+  manufacturer?: string | undefined
+  model?: string | undefined
+  agent_online: boolean
+  capability: string
+  labels: Record<string, string>
+  enrollment?: Enrollment | undefined
+}
+
+export type EnrollmentTargets = {
+  items: EnrollmentTarget[]
+  truncated: boolean
+}
+
+export type CreateEnrollments = {
+  host_ids: string[]
+  ttl_hours?: number | undefined
+}
+
+export type EnrollmentsCreated = {
+  items: Enrollment[]
+  refused: { host_id: string; reason: string }[]
+}

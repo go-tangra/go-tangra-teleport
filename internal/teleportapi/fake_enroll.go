@@ -2,6 +2,13 @@ package teleportapi
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"slices"
 	"sort"
 	"strings"
@@ -60,7 +67,7 @@ func (f *Fake) CreateJoinToken(_ context.Context, s JoinTokenSpec) (IssuedToken,
 			return IssuedToken{}, trace.BadParameter("unknown system role %q", r)
 		}
 	}
-	name := newTokenName()
+	name := f.TokenPrefix + newTokenName()
 	if f.tokens == nil {
 		f.tokens = map[string]fakeToken{}
 	}
@@ -261,4 +268,34 @@ func (f *Fake) SearchSessions(_ context.Context, q EventQuery) (Page[AuditEvent]
 		return Page[AuditEvent]{}, err
 	}
 	return search(f.SessionEvents, q)
+}
+
+// CAPins implements Client from CACerts (a fixed test CA when unset).
+func (f *Fake) CAPins(_ context.Context) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.enter("CAPins"); err != nil {
+		return nil, err
+	}
+	if f.CACerts == nil {
+		f.CACerts = fakeCA()
+	}
+	return CAPinsOf(f.CACerts)
+}
+
+var (
+	fakeCAOnce sync.Once
+	fakeCAPEM  []byte
+)
+
+// fakeCA is a self-signed test CA, generated once per process.
+func fakeCA() []byte {
+	fakeCAOnce.Do(func() {
+		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		tpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "fake.teleport"}, IsCA: true,
+			BasicConstraintsValid: true, NotBefore: time.Unix(0, 0), NotAfter: time.Unix(1<<33, 0)}
+		der, _ := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
+		fakeCAPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	})
+	return fakeCAPEM
 }

@@ -39,6 +39,11 @@ type Fake struct {
 	AuditEvents   []AuditEvent
 	SessionEvents []AuditEvent
 
+	// CACerts is the PEM the fake's CAPins reads (nil: one generated CA).
+	CACerts []byte
+	// TokenPrefix prefixes issued join-token names (a redaction sentinel).
+	TokenPrefix string
+
 	tokens   map[string]fakeToken // join tokens by name (fake_enroll.go)
 	issued   []string             // every join-token name handed out
 	watchers []*FakeWatcher

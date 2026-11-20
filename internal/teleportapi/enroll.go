@@ -5,10 +5,14 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
+	"slices"
 	"time"
 
 	tclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
@@ -140,6 +144,7 @@ type enrollAPI interface {
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 	DeleteToken(ctx context.Context, name string) error
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]apievents.AuditEvent, string, error)
 	SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
@@ -164,6 +169,47 @@ func (r *real) CreateJoinToken(ctx context.Context, s JoinTokenSpec) (IssuedToke
 		return IssuedToken{}, opaque(err)
 	}
 	return IssuedToken{Name: secrets.NewSecret([]byte(name)), Expires: s.Expires.UTC()}, nil
+}
+
+// MaxCAPins bounds the pins a cluster may report (CA rotation keeps two).
+const MaxCAPins = 4
+
+// CAPinsOf computes the pins of the PEM certificates in pemCerts: the
+// SHA-256 of each certificate's SubjectPublicKeyInfo, as `tctl status`
+// prints and `teleport start --ca-pin` expects.
+func CAPinsOf(pemCerts []byte) ([]string, error) {
+	var pins []string
+	for rest := pemCerts; ; {
+		var b *pem.Block
+		b, rest = pem.Decode(rest)
+		if b == nil {
+			break
+		}
+		if b.Type != "CERTIFICATE" {
+			continue
+		}
+		c, err := x509.ParseCertificate(b.Bytes)
+		if err != nil {
+			return nil, trace.BadParameter("cluster CA certificate does not parse")
+		}
+		sum := sha256.Sum256(c.RawSubjectPublicKeyInfo)
+		pin := "sha256:" + hex.EncodeToString(sum[:])
+		if !slices.Contains(pins, pin) {
+			pins = append(pins, pin)
+		}
+	}
+	if len(pins) == 0 || len(pins) > MaxCAPins {
+		return nil, trace.BadParameter("cluster reported %d CA certificates", len(pins))
+	}
+	return pins, nil
+}
+
+func (r *real) CAPins(ctx context.Context) ([]string, error) {
+	resp, err := r.e.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, opaque(err)
+	}
+	return CAPinsOf(resp.TLSCA)
 }
 
 // maxTokenPages bounds the search for a token to revoke.
@@ -270,6 +316,10 @@ func (c *limited) CreateJoinToken(ctx context.Context, s JoinTokenSpec) (IssuedT
 
 func (c *limited) DeleteJoinToken(ctx context.Context, hash []byte) error {
 	return opaque(do(c, ctx, func(ctx context.Context) error { return c.inner.DeleteJoinToken(ctx, hash) }))
+}
+
+func (c *limited) CAPins(ctx context.Context) ([]string, error) {
+	return call(c, ctx, c.inner.CAPins)
 }
 
 // Watch opens a watch with the caller's context: a watch is long-lived, so

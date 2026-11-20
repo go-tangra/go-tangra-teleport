@@ -40,6 +40,7 @@ type Mem struct {
 	cursors    map[string]repo.AlertCursor // by cluster id
 	deliveries map[string]repo.AlertDelivery
 	drafts     map[string]repo.DeploymentDraft
+	enrolls    map[string]repo.Enrollment
 	audit      []repo.AuditRow
 
 	failNext map[string]bool
@@ -55,7 +56,7 @@ func New() *Mem {
 		clusters: map[string]repo.Cluster{}, tokens: map[string]repo.JoinToken{}, snapshots: map[string]repo.ResourceSnapshot{},
 		links: map[string]repo.ResourceLink{}, mappings: map[string]repo.RoleMapping{}, users: map[string]repo.ManagedUser{},
 		rules: map[string]repo.AlertRule{}, cursors: map[string]repo.AlertCursor{}, deliveries: map[string]repo.AlertDelivery{},
-		drafts: map[string]repo.DeploymentDraft{}, failNext: map[string]bool{},
+		drafts: map[string]repo.DeploymentDraft{}, enrolls: map[string]repo.Enrollment{}, failNext: map[string]bool{},
 		Now: func() time.Time { return time.Now().UTC() },
 	}
 }
@@ -200,6 +201,11 @@ func (m *Mem) DeleteCluster(_ context.Context, tenantID, id string) error {
 		return repo.ErrNotFound
 	}
 	delete(m.clusters, id)
+	for k, e := range m.enrolls {
+		if e.ClusterID == id {
+			delete(m.enrolls, k)
+		}
+	}
 	for k, t := range m.tokens {
 		if t.ClusterID == id {
 			delete(m.tokens, k)
@@ -1134,4 +1140,123 @@ func (m *Mem) ListAudit(_ context.Context, tenantID string, q repo.AuditQuery) (
 	start := min(max(q.Offset, 0), len(all))
 	end := min(start+limit, len(all))
 	return all[start:end], len(all), nil
+}
+
+// ---------------------------------------------------------------- enrollments
+
+// CreateEnrollment implements repo.Store.
+func (m *Mem) CreateEnrollment(_ context.Context, e repo.Enrollment) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("CreateEnrollment"); err != nil {
+		return err
+	}
+	if !m.owned(e.TenantID, e.ClusterID) {
+		return repo.ErrNotFound
+	}
+	if _, dup := m.enrolls[e.ID]; dup {
+		return repo.ErrConflict
+	}
+	if e.CreatedAt.IsZero() {
+		e.CreatedAt = m.Now()
+	}
+	if e.UpdatedAt.IsZero() {
+		e.UpdatedAt = e.CreatedAt
+	}
+	m.enrolls[e.ID] = e
+	return nil
+}
+
+// GetEnrollment implements repo.Store.
+func (m *Mem) GetEnrollment(_ context.Context, tenantID, id string) (repo.Enrollment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("GetEnrollment"); err != nil {
+		return repo.Enrollment{}, err
+	}
+	e, ok := m.enrolls[id]
+	if !ok || e.TenantID != tenantID {
+		return repo.Enrollment{}, repo.ErrNotFound
+	}
+	return e, nil
+}
+
+// ListEnrollments implements repo.Store (newest first).
+func (m *Mem) ListEnrollments(_ context.Context, tenantID, clusterID string) ([]repo.Enrollment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("ListEnrollments"); err != nil {
+		return nil, err
+	}
+	var out []repo.Enrollment
+	for _, e := range m.enrolls {
+		if e.TenantID == tenantID && e.ClusterID == clusterID {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].ID > out[j].ID
+	})
+	return out, nil
+}
+
+// UpdateEnrollment implements repo.Store.
+func (m *Mem) UpdateEnrollment(_ context.Context, e repo.Enrollment) (repo.Enrollment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("UpdateEnrollment"); err != nil {
+		return repo.Enrollment{}, err
+	}
+	old, ok := m.enrolls[e.ID]
+	if !ok || old.TenantID != e.TenantID {
+		return repo.Enrollment{}, repo.ErrNotFound
+	}
+	old.State, old.Reason, old.ItemID, old.NodeHostUUID, old.LinkID = e.State, e.Reason, e.ItemID, e.NodeHostUUID, e.LinkID
+	old.UpdatedAt = m.Now()
+	m.enrolls[e.ID] = old
+	return old, nil
+}
+
+// AddEnrollmentRender implements repo.Store.
+func (m *Mem) AddEnrollmentRender(_ context.Context, tenantID, id string, max int) (repo.Enrollment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("AddEnrollmentRender"); err != nil {
+		return repo.Enrollment{}, err
+	}
+	e, ok := m.enrolls[id]
+	if !ok || e.TenantID != tenantID {
+		return repo.Enrollment{}, repo.ErrNotFound
+	}
+	if e.Renders >= max {
+		return repo.Enrollment{}, repo.ErrConflict
+	}
+	e.Renders++
+	e.UpdatedAt = m.Now()
+	m.enrolls[id] = e
+	return e, nil
+}
+
+// ListActiveEnrollments implements repo.Store (least recently updated first).
+func (m *Mem) ListActiveEnrollments(_ context.Context, limit int) ([]repo.Enrollment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("ListActiveEnrollments"); err != nil {
+		return nil, err
+	}
+	var out []repo.Enrollment
+	now := m.Now()
+	for _, e := range m.enrolls {
+		if repo.EnrollActive(e.State) || e.State == repo.EnrollJoined && e.LinkID == "" && now.Before(e.ExpiresAt) {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.Before(out[j].UpdatedAt) })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }

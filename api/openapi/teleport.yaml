@@ -80,6 +80,11 @@ components:
         - teleport_rejected
         - dependency_unavailable
         - blocked_target
+        - no_agent
+        - ambiguous_agent
+        - not_supported_platform
+        - upgrade_required
+        - retired
     Error:
       type: object
       required: [reason]
@@ -372,6 +377,72 @@ components:
       required: [items]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/JoinToken' } }
+    EnrollmentState:
+      type: string
+      enum: [pending, delivered, fetched, installing, joined, failed, unsupported, superseded, expired, cancelled]
+    Enrollment:
+      type: object
+      required: [id, cluster_id, host_id, hostname, state, created_by, created_at, updated_at, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        cluster_id: { type: string, format: uuid }
+        host_id: { type: string, format: uuid, description: 'the inventory host' }
+        hostname: { type: string, maxLength: 255 }
+        state: { $ref: '#/components/schemas/EnrollmentState' }
+        reason: { type: string, maxLength: 64, description: "inventory's reason token for a failed or unsupported enrollment" }
+        node_host_uuid: { type: string, maxLength: 64, description: 'the joined node (its Teleport name)' }
+        link_id: { type: string, maxLength: 64, description: 'the inventory link confirmed once the node joined' }
+        agent_online: { type: boolean }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+    EnrollmentPage:
+      type: object
+      required: [items, stale]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Enrollment' } }
+        stale: { type: boolean, description: 'inventory could not be asked; states are the last known' }
+    CreateEnrollments:
+      type: object
+      additionalProperties: false
+      required: [host_ids]
+      properties:
+        host_ids: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: uuid } }
+        ttl_hours: { type: integer, minimum: 1, maximum: 72, description: 'defaults to 24' }
+    EnrollmentRefusal:
+      type: object
+      required: [host_id, reason]
+      properties:
+        host_id: { type: string, format: uuid }
+        reason: { type: string, maxLength: 64, description: 'no_agent, ambiguous_agent, not_supported_platform, upgrade_required, retired, not_found or dependency_unavailable' }
+    EnrollmentsCreated:
+      type: object
+      required: [items, refused]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Enrollment' } }
+        refused: { type: array, items: { $ref: '#/components/schemas/EnrollmentRefusal' } }
+    EnrollmentTarget:
+      type: object
+      required: [host_id, hostname, agent_online, capability, labels]
+      properties:
+        host_id: { type: string, format: uuid }
+        hostname: { type: string, maxLength: 255 }
+        os_name: { type: string }
+        os_version: { type: string }
+        os_arch: { type: string }
+        manufacturer: { type: string }
+        model: { type: string }
+        agent_online: { type: boolean }
+        capability: { type: string, description: 'enabled, upgrade_required, not_supported_platform, no_agent, ambiguous_agent, retired or disabled_on_server' }
+        labels: { type: object, maxProperties: 64, additionalProperties: { type: string, maxLength: 255 }, description: 'the Teleport labels the node would get' }
+        enrollment: { $ref: '#/components/schemas/Enrollment' }
+    EnrollmentTargets:
+      type: object
+      required: [items, truncated]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/EnrollmentTarget' } }
+        truncated: { type: boolean }
     ResourceLink:
       type: object
       required: [id, target_module, target_id, match, matched_on, created_at]
@@ -999,6 +1070,68 @@ paths:
       parameters: [{ $ref: '#/components/parameters/csrf' }]
       responses:
         '204': { description: revoked }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/enrollment-targets:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportEnrollmentTargets
+      description: >-
+        Inventory hosts that may be enrolled as SSH nodes through their
+        inventory agent, with the labels each would get and its newest
+        enrollment in this cluster.
+      x-freya-permission: 'resources:enroll'
+      parameters:
+        - { name: q, in: query, required: false, description: 'hostname substring', schema: { type: string, maxLength: 64 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200': { description: the hosts, content: { application/json: { schema: { $ref: '#/components/schemas/EnrollmentTargets' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/enrollments:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportEnrollments
+      description: The cluster's enrollments, newest first; unfinished ones are refreshed from inventory.
+      x-freya-permission: 'resources:read'
+      responses:
+        '200': { description: the enrollments, content: { application/json: { schema: { $ref: '#/components/schemas/EnrollmentPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportEnrollments
+      description: >-
+        Asks inventory to have each host's agent install Teleport and join the
+        cluster as an SSH node. No join token is returned or stored: a
+        single-use one is minted when the agent fetches its material.
+      x-freya-permission: 'resources:enroll'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateEnrollments' } } }
+      responses:
+        '201': { description: created and refused hosts, content: { application/json: { schema: { $ref: '#/components/schemas/EnrollmentsCreated' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/enrollments/{eid}/cancel:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: eid, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: cancelTeleportEnrollment
+      description: Withdraws an unfinished enrollment (a finished one is returned unchanged).
+      x-freya-permission: 'resources:enroll'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '200': { description: the enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/Enrollment' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/enrollments/{eid}/retry:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: eid, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: retryTeleportEnrollment
+      description: Enrolls the host of a failed, unsupported, expired, superseded or cancelled enrollment again (a new enrollment).
+      x-freya-permission: 'resources:enroll'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '201': { description: the new enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/Enrollment' } } } }
         default: { $ref: '#/components/responses/Error' }
   /api/teleport/v1/clusters/{id}/resources:
     parameters: [{ $ref: '#/components/parameters/id' }]

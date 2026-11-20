@@ -20,7 +20,7 @@ var contractTypes = []string{
 	"teleport.user.created", "teleport.user.updated", "teleport.user.deleted",
 	"teleport.role.changed", "teleport.role.deleted",
 	"teleport.lock.created", "teleport.lock.removed",
-	"teleport.token.created", "teleport.token.revoked",
+	"teleport.token.created", "teleport.token.revoked", "teleport.enrollment.changed",
 	"teleport.resource.online", "teleport.resource.offline", "teleport.resource.flagged",
 	"teleport.resource.linked", "teleport.resource.unlinked",
 	"teleport.provisioning.changed",
@@ -42,7 +42,7 @@ func TestTypesMatchContract(t *testing.T) {
 func TestPayloadsAreIDsOnly(t *testing.T) {
 	allowed := map[string]bool{"cluster_id": true, "status": true, "expires_at": true, "username": true, "role": true,
 		"lock_name": true, "target_kind": true, "token_id": true, "resource_type": true, "resource_id": true, "kind": true,
-		"target_module": true, "target_id": true, "tangra_user_id": true, "state": true}
+		"target_module": true, "target_id": true, "tangra_user_id": true, "state": true, "enrollment_id": true, "host_id": true}
 	for ty, p := range PayloadFor {
 		rt := reflect.TypeOf(p)
 		for i := range rt.NumField() {

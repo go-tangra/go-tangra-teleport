@@ -22,6 +22,7 @@ The source of truth is `api/openapi/teleport.yaml` (OpenAPI 3.1), served by the 
 | `locks:read` / `locks:manage` | Locks |
 | `tokens:manage` | Create, list and revoke join tokens |
 | `resources:read` / `resources:link` | Resource list; confirm or remove inventory/asset links |
+| `resources:enroll` | Enroll inventory hosts as SSH nodes through their agent (spec 002) |
 | `audit:read` | Teleport audit events, sessions, module audit |
 | `alerts:read` / `alerts:manage` | Alert rules |
 | `provisioning:manage` | Role mappings, provision and de-provision |
@@ -32,7 +33,7 @@ Module roles map to permissions as follows:
 | Module role | Permissions |
 |---|---|
 | **administrator** | all |
-| **operator** | `*:read` + `tokens:manage` + `locks:manage` + `resources:link` |
+| **operator** | `*:read` + `tokens:manage` + `locks:manage` + `resources:link` + `resources:enroll` |
 | **auditor** | `*:read` |
 | **viewer** | `*:read` except `audit:read` |
 

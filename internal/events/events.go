@@ -33,6 +33,7 @@ const (
 	LockRemoved          = "teleport.lock.removed"
 	TokenCreated         = "teleport.token.created"
 	TokenRevoked         = "teleport.token.revoked"
+	EnrollmentChanged    = "teleport.enrollment.changed"
 	ResourceOnline       = "teleport.resource.online"
 	ResourceOffline      = "teleport.resource.offline"
 	ResourceFlagged      = "teleport.resource.flagged"
@@ -49,6 +50,7 @@ var Types = []string{
 	RoleChanged, RoleDeleted,
 	LockCreated, LockRemoved,
 	TokenCreated, TokenRevoked,
+	EnrollmentChanged,
 	ResourceOnline, ResourceOffline, ResourceFlagged,
 	ResourceLinked, ResourceUnlinked,
 	ProvisioningChanged,
@@ -97,6 +99,14 @@ type Token struct {
 	ResourceType string `json:"resource_type"`
 }
 
+// Enrollment is the body of teleport.enrollment.changed (spec 002).
+type Enrollment struct {
+	ClusterID    string `json:"cluster_id"`
+	EnrollmentID string `json:"enrollment_id"`
+	HostID       string `json:"host_id"`
+	State        string `json:"state"`
+}
+
 // Resource is the body of teleport.resource.online/offline/flagged.
 type Resource struct {
 	ClusterID  string `json:"cluster_id"`
@@ -127,7 +137,8 @@ var PayloadFor = map[string]any{
 	RoleChanged: Role{}, RoleDeleted: Role{},
 	LockCreated: Lock{}, LockRemoved: Lock{},
 	TokenCreated: Token{}, TokenRevoked: Token{},
-	ResourceOnline: Resource{}, ResourceOffline: Resource{}, ResourceFlagged: Resource{},
+	EnrollmentChanged: Enrollment{},
+	ResourceOnline:    Resource{}, ResourceOffline: Resource{}, ResourceFlagged: Resource{},
 	ResourceLinked: Link{}, ResourceUnlinked: Link{},
 	ProvisioningChanged: Provisioning{},
 }

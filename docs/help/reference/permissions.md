@@ -26,6 +26,7 @@ member → viewer).
 | `tokens:manage` | Create, list and revoke join tokens |
 | `resources:read` | List enrolled resources and their inventory and asset links |
 | `resources:link` | Confirm or remove inventory and asset links |
+| `resources:enroll` | Enroll inventory hosts as SSH nodes through their inventory agent |
 | `audit:read` | Read Teleport audit events and sessions and the module audit trail |
 | `alerts:read` | List alert rules |
 | `alerts:manage` | Create, edit and delete alert rules |
@@ -37,7 +38,7 @@ member → viewer).
 | Role | Permissions |
 |---|---|
 | Administrator | Every permission above |
-| Operator | Every `:read` permission, plus `tokens:manage`, `locks:manage` and `resources:link` |
+| Operator | Every `:read` permission, plus `tokens:manage`, `locks:manage`, `resources:link` and `resources:enroll` |
 | Auditor | Every `:read` permission, including `audit:read` |
 | Viewer | Every `:read` permission except `audit:read` |
 

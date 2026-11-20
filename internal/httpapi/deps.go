@@ -7,6 +7,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/auditlog"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/clusters"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/deploy"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/enroll"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/locks"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/provisioning"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/resources"
@@ -36,6 +37,7 @@ type Deps struct {
 
 	Tokens    *tokens.Service    // US3: join tokens
 	Resources *resources.Service // US3: resource inventory and links
+	Enroll    *enroll.Service    // spec 002: inventory-agent SSH enrollment
 
 	Audit  *auditlog.Service // US4: Teleport events and sessions, module audit trail
 	Alerts *alerts.Rules     // US4: alert rules
@@ -79,6 +81,9 @@ func (s *Server) Register(d Deps) {
 	}
 	if d.Resources != nil {
 		s.registerResources(d.Resources)
+	}
+	if d.Enroll != nil {
+		s.registerEnrollments(d.Enroll)
 	}
 	if d.Audit != nil {
 		s.registerAudit(d.Audit)

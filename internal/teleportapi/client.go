@@ -136,6 +136,9 @@ type Client interface {
 	// DeleteJoinToken finds the token by the stored TokenHash.
 	CreateJoinToken(ctx context.Context, s JoinTokenSpec) (IssuedToken, error)
 	DeleteJoinToken(ctx context.Context, hash []byte) error
+	// CAPins returns the cluster's TLS CA pins ("sha256:<hex SPKI digest>"),
+	// what a joining node verifies the cluster with (spec 002).
+	CAPins(ctx context.Context) ([]string, error)
 	// Watch opens a change watch on kinds (WatchKinds).
 	Watch(ctx context.Context, kinds []string) (Watcher, error)
 
