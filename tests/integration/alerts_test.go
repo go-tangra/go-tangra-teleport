@@ -75,7 +75,7 @@ func TestFailedLoginBurstAlert(t *testing.T) {
 				{Reader: strings.NewReader(teleportConfig), ContainerFilePath: "/etc/teleport/teleport.yaml", FileMode: 0o644},
 				{Reader: strings.NewReader(roleYAML(t)), ContainerFilePath: "/etc/teleport/tangra-manager-role.yaml", FileMode: 0o644},
 			},
-			WaitingFor: wait.ForLog("The new Teleport process has started").WithStartupTimeout(3 * time.Minute),
+			WaitingFor: wait.ForLog(teleportReady).WithStartupTimeout(3 * time.Minute),
 		}, Started: true,
 	})
 	if err != nil {
@@ -83,7 +83,7 @@ func TestFailedLoginBurstAlert(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Terminate(ctx) })
 	tctl(t, ctx, c, "create", "-f", "/etc/teleport/tangra-manager-role.yaml")
-	tctl(t, ctx, c, "users", "add", "tangra-mgmt", "--roles=tangra-manager")
+	addManager(t, ctx, c)
 	tctl(t, ctx, c, "auth", "sign", "--user=tangra-mgmt", "--format=file", "--ttl=2h", "--out=/tmp/tangra-mgmt.identity", "--overwrite")
 	identity := copyOut(t, ctx, c, "/tmp/tangra-mgmt.identity")
 	ip, err := c.ContainerIP(ctx)

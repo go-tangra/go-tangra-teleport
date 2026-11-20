@@ -14,6 +14,9 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"github.com/testcontainers/testcontainers-go/network"
+	"gopkg.in/yaml.v3"
+	"io"
 	"log/slog"
 	"net/netip"
 	"os"
@@ -43,25 +46,36 @@ func TestEnrollLifecycle(t *testing.T) {
 	if image == "" {
 		image = "public.ecr.aws/gravitational/teleport-distroless:18"
 	}
-	start := func(cfg string, extra ...testcontainers.ContainerFile) (testcontainers.Container, error) {
+	// The node reconnects to the proxy's advertised address after joining, so
+	// both containers share a network and the proxy advertises its alias
+	// (production proxies set public_addr, as the deployment wizard does).
+	nw, err := network.New(ctx)
+	if err != nil {
+		t.Skipf("testcontainers unavailable: %v", err)
+	}
+	t.Cleanup(func() { _ = nw.Remove(ctx) })
+	start := func(ready wait.Strategy, flags []string, cfg string, extra ...testcontainers.ContainerFile) (testcontainers.Container, error) {
 		return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
-				Image:      image,
-				Entrypoint: []string{"teleport", "start", "-c", "/etc/teleport/teleport.yaml"},
+				Image:          image,
+				Networks:       []string{nw.Name},
+				NetworkAliases: map[string][]string{nw.Name: {proxyAlias}},
+				Entrypoint:     append([]string{"teleport", "start", "-c", "/etc/teleport/teleport.yaml"}, flags...),
 				Files: append([]testcontainers.ContainerFile{{Reader: strings.NewReader(cfg), ContainerFilePath: "/etc/teleport/teleport.yaml", FileMode: 0o644}},
 					extra...),
-				WaitingFor: wait.ForLog("The new Teleport process has started").WithStartupTimeout(3 * time.Minute),
+				WaitingFor: ready,
 			}, Started: true,
 		})
 	}
-	c, err := start(teleportConfig, testcontainers.ContainerFile{Reader: strings.NewReader(roleYAML(t)),
-		ContainerFilePath: "/etc/teleport/tangra-manager-role.yaml", FileMode: 0o644})
+	c, err := start(wait.ForLog(teleportReady).WithStartupTimeout(3*time.Minute), nil,
+		strings.Replace(teleportConfig, "  web_listen_addr: 0.0.0.0:3080\n", "  web_listen_addr: 0.0.0.0:3080\n  public_addr: "+proxyAlias+":3080\n", 1), testcontainers.ContainerFile{Reader: strings.NewReader(roleYAML(t)),
+			ContainerFilePath: "/etc/teleport/tangra-manager-role.yaml", FileMode: 0o644})
 	if err != nil {
 		t.Skipf("testcontainers unavailable: %v", err)
 	}
 	t.Cleanup(func() { _ = c.Terminate(ctx) })
 	tctl(t, ctx, c, "create", "-f", "/etc/teleport/tangra-manager-role.yaml")
-	tctl(t, ctx, c, "users", "add", "tangra-mgmt", "--roles=tangra-manager")
+	addManager(t, ctx, c)
 	tctl(t, ctx, c, "auth", "sign", "--user=tangra-mgmt", "--format=file", "--ttl=2h", "--out=/tmp/tangra-mgmt.identity", "--overwrite")
 	identity := copyOut(t, ctx, c, "/tmp/tangra-mgmt.identity")
 	ip, err := c.ContainerIP(ctx)
@@ -100,7 +114,8 @@ func TestEnrollLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	w := &resources.Watcher{Clusters: cs, Repo: store, Linker: linker, Events: rec, Backoff: time.Second}
+	w := &resources.Watcher{Clusters: cs, Repo: store, Linker: linker, Events: rec, Backoff: time.Second,
+		Log: slog.New(slog.NewTextHandler(os.Stderr, nil))}
 	wctx, stop := context.WithCancel(ctx)
 	defer func() { stop(); w.Stop() }()
 	w.RunOnce(wctx)
@@ -111,18 +126,25 @@ func TestEnrollLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("token: %v", err)
 	}
-	cfg := strings.Replace(oneTime(t, tok.ConfigSnippet), "ssh_service:\n  enabled: false", "ssh_service:\n  enabled: true", 1)
-	if !strings.Contains(cfg, "ssh_service") {
-		cfg += "ssh_service:\n  enabled: true\n"
-	}
-	node, err := start(strings.Replace(cfg, "teleport:\n", "teleport:\n  nodename: joined-1\n  data_dir: /var/lib/teleport\n", 1))
+	cfg := nodeConfig(t, oneTime(t, tok.ConfigSnippet))
+	// The agent has no proxy line; the online poll below is its readiness check.
+	// The test proxy's certificate is self-signed, so the agent skips its
+	// verification here (production proxies carry a valid certificate).
+	node, err := start(nil, []string{"--insecure"}, cfg)
 	if err != nil {
 		t.Fatalf("node container: %v", err)
 	}
 	if !eventually(10*time.Minute, func() bool {
 		p, err := rs.List(as, cl.ID, resources.ListInput{Kind: repo.KindNode, Status: resources.StatusOnline})
+		if err != nil {
+			t.Logf("list: %v", err)
+		}
 		return err == nil && len(p.Items) == 1 && p.Items[0].Name != ""
 	}) {
+		if rc, err := node.Logs(ctx); err == nil {
+			b, _ := io.ReadAll(rc)
+			t.Logf("node logs (tail):\n%s", tail(string(b), 40))
+		}
 		t.Fatal("the joined node is not online within 10 minutes (SC-003)")
 	}
 	if len(rec.OfType(events.ResourceOnline)) == 0 {
@@ -160,4 +182,35 @@ func oneTime(t *testing.T, o secrets.OneTime) string {
 	var v string
 	_ = json.Unmarshal(b, &v)
 	return v
+}
+
+// tail returns the last n lines of s.
+func tail(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// proxyAlias is the auth+proxy container's name on the test network.
+const proxyAlias = "teleport-it"
+
+// nodeConfig edits the generated snippet as YAML (it is 4-space indented, so
+// splicing lines would break it): a fixed node name and data dir, SSH on.
+func nodeConfig(t *testing.T, snippet string) string {
+	t.Helper()
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte(snippet), &cfg); err != nil {
+		t.Fatalf("config snippet: %v\n%s", err, snippet)
+	}
+	tp := cfg["teleport"].(map[string]any)
+	tp["nodename"], tp["data_dir"] = "joined-1", "/var/lib/teleport"
+	tp["proxy_server"] = proxyAlias + ":3080"
+	cfg["ssh_service"] = map[string]any{"enabled": true}
+	b, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

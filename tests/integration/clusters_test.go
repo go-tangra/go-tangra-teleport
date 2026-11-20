@@ -52,6 +52,10 @@ const (
 	itCluster = "it.example.com"
 )
 
+// teleportReady is the auth+proxy readiness line of Teleport 18 (the web proxy
+// starts after the auth service is serving, so tctl works from here on).
+const teleportReady = "Starting web proxy service"
+
 const teleportConfig = `version: v3
 teleport:
   nodename: it
@@ -121,7 +125,7 @@ func TestClusterLifecycle(t *testing.T) {
 				{Reader: strings.NewReader(teleportConfig), ContainerFilePath: "/etc/teleport/teleport.yaml", FileMode: 0o644},
 				{Reader: strings.NewReader(roleYAML(t)), ContainerFilePath: "/etc/teleport/tangra-manager-role.yaml", FileMode: 0o644},
 			},
-			WaitingFor: wait.ForLog("The new Teleport process has started").WithStartupTimeout(3 * time.Minute),
+			WaitingFor: wait.ForLog(teleportReady).WithStartupTimeout(3 * time.Minute),
 		}, Started: true,
 	})
 	if err != nil {
@@ -130,7 +134,7 @@ func TestClusterLifecycle(t *testing.T) {
 	t.Cleanup(func() { _ = c.Terminate(ctx) })
 
 	tctl(t, ctx, c, "create", "-f", "/etc/teleport/tangra-manager-role.yaml")
-	tctl(t, ctx, c, "users", "add", "tangra-mgmt", "--roles=tangra-manager")
+	addManager(t, ctx, c)
 	tctl(t, ctx, c, "auth", "sign", "--user=tangra-mgmt", "--format=file", "--ttl=2h", "--out=/tmp/tangra-mgmt.identity", "--overwrite")
 	rc, err := c.CopyFileFromContainer(ctx, "/tmp/tangra-mgmt.identity")
 	if err != nil {
@@ -212,5 +216,18 @@ func TestClusterLifecycle(t *testing.T) {
 	// Removal deletes the registration and the secret; Teleport is untouched.
 	if err := svc.Remove(as, v.ID); err != nil || sec.Len() != 0 {
 		t.Fatalf("remove: %v (secrets %d)", err, sec.Len())
+	}
+}
+
+// addManager creates the management user and waits until Teleport's user
+// cache lists it: right after creation the cache still reports no users for a
+// few seconds, which made registration counts racy.
+func addManager(t *testing.T, ctx context.Context, c testcontainers.Container) {
+	t.Helper()
+	tctl(t, ctx, c, "users", "add", "tangra-mgmt", "--roles=tangra-manager")
+	if !eventually(30*time.Second, func() bool {
+		return strings.Contains(tctlOut(t, ctx, c, "users", "ls"), "tangra-mgmt")
+	}) {
+		t.Fatal("tangra-mgmt never appeared in the user list")
 	}
 }
