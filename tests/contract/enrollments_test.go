@@ -138,7 +138,9 @@ func TestEnrollmentResponsesMatchSchemas(t *testing.T) {
 	// A refused retry answers the refusal reason; an outage is a dependency.
 	_, w = call(s, "POST", base+"/enrollments", "operator", map[string]any{"host_ids": []string{enrollHost1}})
 	_ = json.Unmarshal(w.Body.Bytes(), &created)
-	_, w = call(s, "POST", base+"/enrollments/"+created.Items[0].ID+"/cancel", "operator", nil)
+	if _, w = call(s, "POST", base+"/enrollments/"+created.Items[0].ID+"/cancel", "operator", nil); w.Code != 200 {
+		t.Fatalf("cancel: %d %s", w.Code, w.Body)
+	}
 	inv.Refuse(enrollHost1, "retired")
 	r, w := call(s, "POST", base+"/enrollments/"+created.Items[0].ID+"/retry", "operator", nil)
 	if w.Code != 409 || !strings.Contains(w.Body.String(), "retired") {
