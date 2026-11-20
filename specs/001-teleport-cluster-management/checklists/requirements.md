@@ -1,0 +1,39 @@
+# Specification Quality Checklist: Teleport Cluster Management Module
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-11-19
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs)
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic (no implementation details)
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded
+- [x] Dependencies and assumptions identified
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- The spec names Teleport concepts (roles, locks, join tokens, proxy address) because they are the product domain, not implementation choices.
+- The two open scope questions were settled with documented defaults instead of clarification markers:
+  - Guided deployment produces artifacts only; it does not run the install remotely.
+  - Session playback is a deep link into the Teleport web UI, not embedded in tangra.
+- Both defaults are recorded in Assumptions and can be revisited with `/speckit-clarify`.
+- Validation passed on the first iteration.

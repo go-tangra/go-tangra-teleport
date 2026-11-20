@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+// teleport.v1 is the module-to-module API of the Teleport module
+// (contracts/grpc.md). It is NOT proxied by the gateway: callers are
+// authenticated platform services on the Freya SPIFFE mTLS channel, admitted
+// by deploy/policy.yaml (inventory, asset and portal only) and re-checked in
+// the handler.
+//
+// Access is read-only: it lets inventory, asset and portal show "reachable
+// through Teleport" for a host. Every request names the tenant it acts for;
+// answers are scoped to that tenant (row-level security). No message ever
+// carries a management credential, a join token or an invite link.
+package teleport.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/go-tangra/go-tangra-teleport/v4/api/proto/teleport/v1;teleportv1";
+
+// Access answers Teleport reachability questions about hosts.
+service Access {
+  // Hosts enrolled in any of the tenant's clusters that match a hostname or
+  // an IP address (exactly one of them; validated).
+  rpc LookupHost(LookupHostRequest) returns (LookupHostResponse);
+  // Teleport reachability of the caller's own records, in bulk (at most 500
+  // ids): the resources linked to each record.
+  rpc GetLinks(GetLinksRequest) returns (GetLinksResponse);
+}
+
+message LookupHostRequest {
+  string tenant_id = 1; // uuid
+  string hostname = 2;  // RFC 1123 hostname, at most 253 characters
+  string ip = 3;        // IPv4 or IPv6 address
+}
+
+// HostAccess is one enrolled resource that reaches a host.
+message HostAccess {
+  string cluster_id = 1;
+  string cluster_name = 2;
+  string resource_name = 3;
+  bool online = 4;
+  google.protobuf.Timestamp last_seen = 5;
+  string web_url = 6; // deep link to the resource in the proxy's web UI
+  string resource_id = 7;
+  string kind = 8; // node | app | db | kube | desktop
+}
+
+message LookupHostResponse {
+  repeated HostAccess hosts = 1;
+}
+
+message GetLinksRequest {
+  string tenant_id = 1;              // uuid
+  string target_module = 2;          // inventory | asset
+  repeated string target_ids = 3;    // 1 to 500 record ids
+}
+
+message GetLinksResponse {
+  // One entry per linked record (the first linked resource; an online one
+  // when there is one). Records without a link are absent.
+  map<string, HostAccess> by_target_id = 1;
+}

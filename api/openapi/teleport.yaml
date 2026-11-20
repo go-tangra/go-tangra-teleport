@@ -1,0 +1,1295 @@
+openapi: 3.1.0
+info:
+  title: Teleport API
+  version: 0.1.0
+  description: >
+    Tenant-scoped management of Teleport clusters: registration and health,
+    users, roles, locks, join tokens, resources with inventory/asset links,
+    audit events and sessions, alert rules, Tangra identity provisioning and a
+    deployment wizard. Gateway-proxied under /api/teleport. Every route
+    declares an x-freya-permission (or x-freya-public); mutating routes carry
+    the platform CSRF header. Teleport-backed lists use an opaque `next`
+    cursor; module lists follow the platform list contract (page, page_size,
+    order). No response carries identity files, private keys or Teleport
+    stack traces; fields marked one-time (invite and reset URLs, join tokens,
+    install commands) appear only in the response that creates them.
+servers:
+  - url: /
+components:
+  parameters:
+    csrf:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, maxLength: 128 }
+    id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: '018f3a2b-0000-7000-8000-000000000001'
+    # Platform list contract (go-tangra specs/032-server-side-tables).
+    page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 2147483647 }
+    pageSize:
+      name: page_size
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200 }
+    order:
+      name: order
+      in: query
+      required: false
+      description: direction; defaults to the chosen field's default direction
+      schema: { type: string, enum: [asc, desc] }
+    # Teleport-backed lists page with an opaque cursor.
+    next:
+      name: next
+      in: query
+      required: false
+      schema: { type: string, maxLength: 1024 }
+    # Teleport object names (users, roles, locks): letters, digits and . _ @ + - :
+    name:
+      name: name
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/TeleportName' }
+      example: alice
+  schemas:
+    Reason:
+      type: string
+      enum:
+        - bad_request
+        - validation_failed
+        - malformed_body
+        - body_too_large
+        - not_found
+        - conflict
+        - forbidden
+        - unauthenticated
+        - rate_limited
+        - not_implemented
+        - temporarily_unavailable
+        - cluster_unreachable
+        - credential_invalid
+        - unsupported_version
+        - enterprise_only
+        - teleport_rejected
+        - dependency_unavailable
+        - blocked_target
+    Error:
+      type: object
+      required: [reason]
+      properties:
+        reason: { $ref: '#/components/schemas/Reason' }
+        message: { type: string, maxLength: 512 }
+        detail: { type: object }
+    Counts:
+      type: object
+      required: [users, roles, nodes, apps, dbs, kube, desktops]
+      properties:
+        users: { type: integer, minimum: 0 }
+        roles: { type: integer, minimum: 0 }
+        nodes: { type: integer, minimum: 0 }
+        apps: { type: integer, minimum: 0 }
+        dbs: { type: integer, minimum: 0 }
+        kube: { type: integer, minimum: 0 }
+        desktops: { type: integer, minimum: 0 }
+    ClusterSettings:
+      type: object
+      required: [offline_threshold_minutes, alerts_enabled]
+      properties:
+        offline_threshold_minutes: { type: integer, minimum: 0, maximum: 1440 }
+        alerts_enabled: { type: boolean }
+    ClusterStatus:
+      type: string
+      enum: [connected, unreachable, credential_expiring, credential_invalid, unsupported_version]
+    Cluster:
+      type: object
+      description: >-
+        A registered cluster and its last health check. The credential
+        reference and the identity file are never returned.
+      required: [id, display_name, proxy_addr, cluster_name, edition, server_version, credential_kind, credential_identity,
+        status, status_reason, missing_permissions, counts, settings, writes_blocked, created_by, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string, minLength: 1, maxLength: 64 }
+        proxy_addr: { type: string, maxLength: 300 }
+        cluster_name: { type: string, maxLength: 253 }
+        edition: { type: string, enum: [community, enterprise, unknown] }
+        server_version: { type: string, maxLength: 64 }
+        credential_kind: { type: string, enum: [identity_file] }
+        credential_identity: { type: string, maxLength: 256, description: Teleport username of the management identity }
+        credential_expires_at: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/ClusterStatus' }
+        status_reason: { type: string, maxLength: 512 }
+        missing_permissions:
+          type: array
+          description: read grants of the tangra-manager role (research D3) the identity lacks, as "<kind>:read"
+          items: { type: string, maxLength: 64 }
+        last_contact_at: { type: string, format: date-time }
+        counts: { $ref: '#/components/schemas/Counts' }
+        settings: { $ref: '#/components/schemas/ClusterSettings' }
+        writes_blocked: { type: boolean, description: 'true for unsupported_version: Teleport writes are refused' }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ClusterPage:
+      type: object
+      required: [items, total, page, page_size, sort, order]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Cluster' } }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        page_size: { type: integer, minimum: 1 }
+        sort: { type: string }
+        order: { type: string, enum: [asc, desc] }
+    IdentityFile:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      description: >-
+        Teleport identity file (`tctl auth sign --format=file`), at most 64
+        KiB. Accepted in requests only; stored in the secret store and never
+        returned, logged or audited.
+    RegisterCluster:
+      type: object
+      additionalProperties: false
+      required: [display_name, proxy_addr, credential]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 64 }
+        proxy_addr: { type: string, minLength: 1, maxLength: 300, description: 'public proxy address, host[:port] (port 443 by default)' }
+        credential_kind: { type: string, enum: [identity_file], description: 'bot mode is deferred (research D2)' }
+        credential: { $ref: '#/components/schemas/IdentityFile' }
+    RotateCredential:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential_kind: { type: string, enum: [identity_file] }
+        credential: { $ref: '#/components/schemas/IdentityFile' }
+    UpdateCluster:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 64 }
+        settings:
+          type: object
+          additionalProperties: false
+          minProperties: 1
+          properties:
+            offline_threshold_minutes: { type: integer, minimum: 5, maximum: 1440 }
+            alerts_enabled: { type: boolean }
+    TeleportName:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._@+:-]{0,127}$'
+    NameList:
+      type: array
+      maxItems: 32
+      items: { $ref: '#/components/schemas/TeleportName' }
+    OneTimeURL:
+      type: string
+      format: uri
+      maxLength: 2048
+      description: >-
+        One-time link. It appears only in this response: it is never logged,
+        cached, stored, published or audited, and cannot be read again.
+    # ---- Users (US2)
+    TeleportUser:
+      type: object
+      required: [name, roles, logins, managed, locked, revision]
+      properties:
+        name: { $ref: '#/components/schemas/TeleportName' }
+        roles: { type: array, items: { type: string } }
+        logins: { type: array, items: { type: string } }
+        created: { type: string, format: date-time }
+        managed: { type: boolean, description: 'provisioned by tangra (label tangra.io/managed)' }
+        tangra_user_id: { type: string, description: 'the provisioned tangra user (label tangra.io/user)' }
+        locked: { type: boolean, description: 'a lock on this user is in force' }
+        revision: { type: string, description: 'send it back with an update (research D5)' }
+    UserPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TeleportUser' } }
+        next: { type: string, description: opaque cursor of the next page }
+    CreateUser:
+      type: object
+      additionalProperties: false
+      required: [name, roles]
+      properties:
+        name: { $ref: '#/components/schemas/TeleportName' }
+        roles: { allOf: [{ $ref: '#/components/schemas/NameList' }], minItems: 1 }
+        logins: { $ref: '#/components/schemas/NameList' }
+    UserCreated:
+      type: object
+      required: [user, invite_url, invite_expires_at]
+      properties:
+        user: { $ref: '#/components/schemas/TeleportUser' }
+        invite_url: { $ref: '#/components/schemas/OneTimeURL' }
+        invite_expires_at: { type: string, format: date-time }
+    UpdateUser:
+      type: object
+      additionalProperties: false
+      required: [roles, revision]
+      properties:
+        roles: { allOf: [{ $ref: '#/components/schemas/NameList' }], minItems: 1 }
+        logins: { $ref: '#/components/schemas/NameList' }
+        revision: { type: string, minLength: 1, maxLength: 256 }
+    ResetLink:
+      type: object
+      required: [reset_url, expires_at]
+      properties:
+        reset_url: { $ref: '#/components/schemas/OneTimeURL' }
+        expires_at: { type: string, format: date-time }
+    # ---- Roles (US2)
+    RoleYAML:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      description: 'one `kind: role` document, version v7 or v8, at most 64 KiB (research D6)'
+    TeleportRole:
+      type: object
+      required: [name, preset, revision]
+      properties:
+        name: { type: string }
+        preset: { type: boolean, description: 'a Teleport built-in role; it cannot be deleted' }
+        revision: { type: string }
+    RolePage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TeleportRole' } }
+        next: { type: string }
+    RoleDefinition:
+      type: object
+      required: [yaml, revision, preset]
+      properties:
+        yaml: { type: string, description: 'normalized YAML: sorted keys, defaults applied, no revision' }
+        revision: { type: string }
+        preset: { type: boolean }
+    PreviewRole:
+      type: object
+      additionalProperties: false
+      required: [yaml]
+      properties:
+        yaml: { $ref: '#/components/schemas/RoleYAML' }
+        revision: { type: string, maxLength: 256, description: 'the revision read; omit for a new role' }
+    RolePreview:
+      type: object
+      required: [valid, errors, diff]
+      properties:
+        valid: { type: boolean, description: 'the definition validates and may be applied with this revision' }
+        errors: { type: array, items: { type: string, maxLength: 512 } }
+        diff: { type: string, description: 'unified diff of the normalized YAML, current → proposed' }
+    PutRole:
+      type: object
+      additionalProperties: false
+      required: [yaml]
+      properties:
+        yaml: { $ref: '#/components/schemas/RoleYAML' }
+        revision: { type: string, maxLength: 256, description: 'the revision read; empty creates the role' }
+    # ---- Locks (US2)
+    LockTargetKind:
+      type: string
+      enum: [user, role, server_id]
+    TeleportLock:
+      type: object
+      required: [name, target_kind, target, message, created_by]
+      properties:
+        name: { type: string }
+        target_kind: { $ref: '#/components/schemas/LockTargetKind' }
+        target:
+          type: object
+          minProperties: 1
+          maxProperties: 1
+          properties:
+            user: { type: string }
+            role: { type: string }
+            server_id: { type: string }
+        message: { type: string, description: the lock reason shown to locked-out users }
+        created_by: { type: string, description: the tangra user who created the lock (or the Teleport author) }
+        expires_at: { type: string, format: date-time }
+    LockPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TeleportLock' } }
+    CreateLock:
+      type: object
+      additionalProperties: false
+      required: [target_kind, target, reason]
+      properties:
+        target_kind: { $ref: '#/components/schemas/LockTargetKind' }
+        target: { $ref: '#/components/schemas/TeleportName' }
+        reason: { type: string, minLength: 1, maxLength: 256 }
+        expires_at: { type: string, format: date-time, description: 'must be in the future; omit for a lock until removed' }
+    ResourceKind: { type: string, enum: [node, app, db, kube, desktop] }
+    OneTimeText:
+      type: string
+      maxLength: 8192
+      description: >-
+        One-time value embedding a join token. It appears only in this
+        response: it is never logged, cached, stored, published or audited,
+        and cannot be read again.
+    CreateToken:
+      type: object
+      additionalProperties: false
+      required: [resource_type]
+      properties:
+        resource_type: { $ref: '#/components/schemas/ResourceKind' }
+        ttl_minutes: { type: integer, minimum: 1, maximum: 1440, description: 'defaults to 30' }
+    TokenCreated:
+      type: object
+      required: [id, resource_type, token, expires_at, install_command, config_snippet]
+      properties:
+        id: { type: string, format: uuid }
+        resource_type: { $ref: '#/components/schemas/ResourceKind' }
+        token: { type: string, maxLength: 128, description: 'one-time join token value; only its SHA-256 hash is kept' }
+        expires_at: { type: string, format: date-time }
+        install_command: { $ref: '#/components/schemas/OneTimeText' }
+        config_snippet: { $ref: '#/components/schemas/OneTimeText' }
+    JoinToken:
+      type: object
+      required: [id, resource_type, created_by, created_at, expires_at, expired, revoked]
+      properties:
+        id: { type: string, format: uuid }
+        resource_type: { $ref: '#/components/schemas/ResourceKind' }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        expired: { type: boolean }
+        revoked: { type: boolean }
+        revoked_at: { type: string, format: date-time }
+    TokenPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/JoinToken' } }
+    ResourceLink:
+      type: object
+      required: [id, target_module, target_id, match, matched_on, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        target_module: { type: string, enum: [inventory, asset] }
+        target_id: { type: string }
+        match: { type: string, enum: [auto, candidate, confirmed] }
+        matched_on: { type: string, enum: [hostname, ip] }
+        created_at: { type: string, format: date-time }
+    CreateLink:
+      type: object
+      additionalProperties: false
+      required: [target_module, target_id]
+      properties:
+        target_module: { type: string, enum: [inventory, asset] }
+        target_id: { type: string, minLength: 1, maxLength: 128 }
+    Resource:
+      type: object
+      required: [id, kind, name, labels, agent_version, status, links]
+      properties:
+        id: { type: string, format: uuid, description: 'snapshot id ({rid} of the link routes)' }
+        kind: { $ref: '#/components/schemas/ResourceKind' }
+        name: { type: string }
+        hostname: { type: string }
+        addr: { type: string }
+        labels: { type: object, additionalProperties: { type: string } }
+        agent_version: { type: string }
+        status: { type: string, enum: [online, offline, flagged] }
+        last_seen_at: { type: string, format: date-time }
+        offline_since: { type: string, format: date-time }
+        flagged_at: { type: string, format: date-time }
+        links: { type: array, items: { $ref: '#/components/schemas/ResourceLink' } }
+    ResourcePage:
+      type: object
+      required: [items, link_status]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Resource' } }
+        next: { type: string }
+        link_status:
+          type: string
+          enum: [ok, dependency_unavailable]
+          description: 'whether automatic inventory/asset matching is available; manual links work either way'
+    # ---- Audit and alerts (US4)
+    EventType:
+      type: string
+      description: >-
+        Allow-listed normalized Teleport event type. A failed sign-in is
+        user.login.failure (Teleport's user.login with a failure code).
+      enum:
+        - access_request.create
+        - access_request.review
+        - app.session.start
+        - cert.create
+        - db.session.start
+        - exec
+        - lock.created
+        - lock.deleted
+        - reset_password_token.create
+        - role.created
+        - role.deleted
+        - role.updated
+        - session.end
+        - session.join
+        - session.leave
+        - session.start
+        - user.create
+        - user.delete
+        - user.login
+        - user.login.failure
+        - user.password_change
+        - user.update
+        - windows.desktop.session.start
+    AuditEvent:
+      type: object
+      description: >-
+        A normalized Teleport audit event. user, resource and summary are
+        bounded plain text (render as text, never as markup); raw is the
+        Teleport event as JSON, at most 16 KiB (a larger event keeps only its
+        top-level scalar fields and carries "truncated": true).
+      required: [id, time, type, code, user, resource, success, summary, raw]
+      properties:
+        id: { type: string }
+        time: { type: string, format: date-time }
+        type: { type: string }
+        code: { type: string }
+        user: { type: string, maxLength: 256 }
+        resource: { type: string, maxLength: 256 }
+        success: { type: boolean }
+        summary: { type: string }
+        raw: { type: object }
+    AuditEventPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/AuditEvent' } }
+        next: { type: string, description: 'opaque Teleport cursor; pass it back unchanged with the same window and filters' }
+    Session:
+      type: object
+      required: [sid, participants, user, target, kind, started_at, duration_s]
+      properties:
+        sid: { type: string }
+        participants: { type: array, items: { type: string } }
+        user: { type: string }
+        target: { type: string }
+        kind: { type: string, enum: [ssh, kube, db, app, desktop] }
+        started_at: { type: string, format: date-time }
+        duration_s: { type: integer, minimum: 0 }
+        playback_url: { type: string, format: uri, description: 'opens playback in the Teleport web UI (absent when the session id is unusable)' }
+    SessionPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/Session' } }
+        next: { type: string }
+    AuditRecord:
+      type: object
+      required: [id, time, actor_kind, actor_id, action, target_kind, target_name, outcome, detail]
+      properties:
+        id: { type: string }
+        time: { type: string, format: date-time }
+        actor_kind: { type: string, enum: [user, module, worker, system] }
+        actor_id: { type: string }
+        cluster_id: { type: string, format: uuid }
+        action: { type: string }
+        target_kind: { type: string }
+        target_name: { type: string }
+        outcome: { type: string, enum: [success, failure, unknown] }
+        reason: { type: string }
+        correlation_id: { type: string }
+        detail: { type: object, description: 'action details; never a credential, token, invite link or role YAML' }
+    AuditRecordPage:
+      type: object
+      required: [items, total, page, page_size, sort, order]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AuditRecord' } }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        page_size: { type: integer, minimum: 1 }
+        sort: { type: string }
+        order: { type: string, enum: [asc, desc] }
+    RecipientID: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._@:-]{0,127}$' }
+    Recipients:
+      type: object
+      additionalProperties: false
+      required: [user_ids]
+      properties:
+        user_ids: { type: array, minItems: 1, maxItems: 50, items: { $ref: '#/components/schemas/RecipientID' }, description: 'tangra users notified' }
+        channel_ids: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/RecipientID' }, description: 'stored; delivery goes to user_ids' }
+    ConditionKind: { type: string, enum: [teleport_event, cluster_unreachable, credential_expiring, resource_offline] }
+    AlertRuleInput:
+      type: object
+      additionalProperties: false
+      required: [name, condition_kind, recipients]
+      description: >-
+        teleport_event rules need event_types and may set threshold_count and
+        window_minutes together (at least N matches by one user within W
+        minutes); module conditions take neither. PUT replaces every field;
+        cluster_id (absent = every cluster of the tenant) cannot change.
+      properties:
+        cluster_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 64 }
+        condition_kind: { $ref: '#/components/schemas/ConditionKind' }
+        event_types: { type: array, maxItems: 32, items: { $ref: '#/components/schemas/EventType' } }
+        threshold_count: { type: integer, minimum: 0, maximum: 1000 }
+        window_minutes: { type: integer, minimum: 0, maximum: 1440 }
+        recipients: { $ref: '#/components/schemas/Recipients' }
+        enabled: { type: boolean, description: 'defaults to true' }
+    AlertRule:
+      type: object
+      required: [id, name, condition_kind, event_types, threshold_count, window_minutes, recipients, enabled, created_by, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        cluster_id: { type: string, format: uuid }
+        name: { type: string }
+        condition_kind: { $ref: '#/components/schemas/ConditionKind' }
+        event_types: { type: array, items: { type: string } }
+        threshold_count: { type: integer, minimum: 0 }
+        window_minutes: { type: integer, minimum: 0 }
+        recipients:
+          type: object
+          required: [user_ids, channel_ids]
+          properties:
+            user_ids: { type: array, items: { type: string } }
+            channel_ids: { type: array, items: { type: string } }
+        enabled: { type: boolean }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AlertRulePage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AlertRule' } }
+    # ---- Provisioning (US5)
+    SubjectKind: { type: string, enum: [module_role, group] }
+    Login: { type: string, pattern: '^[A-Za-z_][A-Za-z0-9._-]{0,31}$' }
+    RoleMappingInput:
+      type: object
+      additionalProperties: false
+      required: [subject_kind, subject_ref, teleport_roles]
+      description: >-
+        Maps a tangra module role (slug) or group (id) to Teleport roles and
+        logins on this cluster. Every Teleport role must exist on the cluster.
+      properties:
+        subject_kind: { $ref: '#/components/schemas/SubjectKind' }
+        subject_ref: { $ref: '#/components/schemas/TeleportName' }
+        teleport_roles: { type: array, minItems: 1, maxItems: 16, items: { $ref: '#/components/schemas/TeleportName' } }
+        logins: { type: array, maxItems: 32, items: { $ref: '#/components/schemas/Login' } }
+    RoleMappingUpdate:
+      type: object
+      additionalProperties: false
+      required: [teleport_roles]
+      description: Replaces the roles and logins; the subject cannot change.
+      properties:
+        teleport_roles: { type: array, minItems: 1, maxItems: 16, items: { $ref: '#/components/schemas/TeleportName' } }
+        logins: { type: array, maxItems: 32, items: { $ref: '#/components/schemas/Login' } }
+    RoleMapping:
+      type: object
+      required: [id, cluster_id, subject_kind, subject_ref, teleport_roles, logins, created_by, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        cluster_id: { type: string, format: uuid }
+        subject_kind: { $ref: '#/components/schemas/SubjectKind' }
+        subject_ref: { type: string }
+        teleport_roles: { type: array, items: { type: string } }
+        logins: { type: array, items: { type: string } }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    RoleMappingPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/RoleMapping' } }
+    ManagedUser:
+      type: object
+      required: [id, tangra_user_id, teleport_username, state, applied_roles, applied_logins, locked, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        tangra_user_id: { type: string }
+        teleport_username: { type: string }
+        state: { type: string, enum: [provisioning, active, locked_pending_deletion, error] }
+        applied_roles: { type: array, items: { type: string } }
+        applied_logins: { type: array, items: { type: string } }
+        locked: { type: boolean, description: 'the module lock is in force' }
+        deprovision_after: { type: string, format: date-time, description: 'when a locked user is deleted' }
+        last_synced_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    ManagedUserPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ManagedUser' } }
+    ProvisionUser:
+      type: object
+      additionalProperties: false
+      required: [tangra_user_id]
+      properties:
+        tangra_user_id: { type: string, format: uuid }
+    ProvisioningSummary:
+      type: object
+      required: [created, updated, locked, unlocked, deleted, errors]
+      description: What one sync changed; errors are retried on the next sync.
+      properties:
+        created: { type: integer, minimum: 0 }
+        updated: { type: integer, minimum: 0 }
+        locked: { type: integer, minimum: 0 }
+        unlocked: { type: integer, minimum: 0 }
+        deleted: { type: integer, minimum: 0 }
+        errors: { type: integer, minimum: 0 }
+    # ---- Deployment wizard (US6)
+    DraftInput:
+      type: object
+      additionalProperties: false
+      required: [domain, cert_mode, teleport_version, admin_username, admin_logins]
+      description: >-
+        Wizard inputs, validated strictly (no shell, YAML or Markdown syntax
+        can pass). acme_email is required for acme and refused for own_cert.
+        registered_cluster_id records the handover (PUT only; a cluster of
+        the caller's tenant).
+      properties:
+        domain: { type: string, minLength: 3, maxLength: 253 }
+        cert_mode: { type: string, enum: [acme, own_cert] }
+        acme_email: { type: string, maxLength: 254 }
+        teleport_version: { type: string, pattern: '^\d+\.\d+\.\d+$', maxLength: 14 }
+        admin_username: { type: string, minLength: 1, maxLength: 64 }
+        admin_logins: { type: array, minItems: 1, maxItems: 32, items: { $ref: '#/components/schemas/Login' } }
+        registered_cluster_id: { type: string, format: uuid }
+    DraftCheck:
+      type: object
+      required: [name, ok, detail, checked_at]
+      properties:
+        name: { type: string, enum: [dns_apex, dns_wildcard, tls_443] }
+        ok: { type: boolean }
+        detail: { type: string, description: 'the outcome class; never a resolved address' }
+        checked_at: { type: string, format: date-time }
+    ArtifactName: { type: string, enum: [teleport.yaml, install.sh, tangra-manager-role.yaml, setup-commands.txt, checklist.md] }
+    Draft:
+      type: object
+      required: [id, domain, cert_mode, teleport_version, admin_username, admin_logins, checks, proxy_addr, artifacts, created_by, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        domain: { type: string }
+        cert_mode: { type: string, enum: [acme, own_cert] }
+        acme_email: { type: string }
+        teleport_version: { type: string }
+        admin_username: { type: string }
+        admin_logins: { type: array, items: { type: string } }
+        checks: { type: array, items: { $ref: '#/components/schemas/DraftCheck' } }
+        registered_cluster_id: { type: string, format: uuid }
+        proxy_addr: { type: string, description: 'the address the registration dialog is filled with' }
+        artifacts: { type: array, items: { $ref: '#/components/schemas/ArtifactName' } }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    DraftPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Draft' } }
+  responses:
+    Error:
+      description: refusal with a stable reason
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+paths:
+  /api/teleport/v1/health:
+    get:
+      operationId: health
+      x-freya-public: true
+      responses:
+        '200': { description: 'liveness + component status', content: { application/json: { schema: { type: object } } } }
+  /api/teleport/v1/stream:
+    get:
+      operationId: streamEvents
+      description: >-
+        Long-lived SSE stream of this tenant's teleport.* events (ids only).
+        The route timeout is raised to the gateway's 5-minute maximum; the
+        module closes the stream at 290 s and the client resumes with last_id.
+      x-freya-permission: 'clusters:read'
+      x-freya-timeout-seconds: 300
+      parameters: [{ name: last_id, in: query, schema: { type: string, maxLength: 64 } }]
+      responses:
+        '200': { description: "SSE stream of this tenant's Teleport events", content: { text/event-stream: { schema: { type: string } } } }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Clusters (US1)
+  /api/teleport/v1/clusters:
+    get:
+      operationId: listClusters
+      description: The tenant's clusters with their last health check.
+      x-freya-permission: 'clusters:read'
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/pageSize' }
+        - { $ref: '#/components/parameters/order' }
+        - { name: sort, in: query, required: false, schema: { type: string, enum: [display_name, status, created_at] } }
+      responses:
+        '200': { description: one page of clusters, content: { application/json: { schema: { $ref: '#/components/schemas/ClusterPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: registerCluster
+      description: >-
+        Verifies the cluster with the identity first (netguard, identity
+        parse, ping, permission probe); nothing is stored when that fails.
+        Then stores the identity in the secret store and the registration
+        with its reference. Refusals: 422 blocked_target, credential_invalid,
+        validation_failed; 502 cluster_unreachable; 409 conflict (display
+        name); 503 dependency_unavailable when the secret store cannot write
+        (warden write support is pending).
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterCluster' } } }
+      responses:
+        '201': { description: registered, content: { application/json: { schema: { $ref: '#/components/schemas/Cluster' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: getCluster
+      x-freya-permission: 'clusters:read'
+      responses:
+        '200': { description: the cluster, content: { application/json: { schema: { $ref: '#/components/schemas/Cluster' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: updateCluster
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateCluster' } } }
+      responses:
+        '200': { description: updated, content: { application/json: { schema: { $ref: '#/components/schemas/Cluster' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: removeCluster
+      description: >-
+        Removes the registration, its links, mappings and the stored
+        credential. The Teleport cluster is not contacted or changed.
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: removed }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/credential:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: rotateClusterCredential
+      description: >-
+        Verifies the new identity against the registered cluster (same
+        cluster name), then replaces the stored credential. Refusals as for
+        registration.
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RotateCredential' } } }
+      responses:
+        '200': { description: rotated, content: { application/json: { schema: { $ref: '#/components/schemas/Cluster' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/check:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: checkCluster
+      description: Runs a health check now and returns the updated cluster.
+      x-freya-permission: 'clusters:read'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '200': { description: checked, content: { application/json: { schema: { $ref: '#/components/schemas/Cluster' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Users (US2)
+  /api/teleport/v1/clusters/{id}/users:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportUsers
+      description: >-
+        The cluster's users, read live from Teleport (15 s cache). `q`
+        matches names within the page read.
+      x-freya-permission: 'users:read'
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { $ref: '#/components/parameters/next' }
+        - { $ref: '#/components/parameters/pageSize' }
+      responses:
+        '200': { description: one page of users, content: { application/json: { schema: { $ref: '#/components/schemas/UserPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportUser
+      description: >-
+        Creates the user and issues its invite link, returned once. Refusals:
+        422 validation_failed (also for roles the cluster lacks); 409 conflict
+        (the user exists); 422 unsupported_version (writes blocked).
+      x-freya-permission: 'users:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateUser' } } }
+      responses:
+        '201': { description: created, content: { application/json: { schema: { $ref: '#/components/schemas/UserCreated' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/users/{name}:
+    parameters: [{ $ref: '#/components/parameters/id' }, { $ref: '#/components/parameters/name' }]
+    put:
+      operationId: updateTeleportUser
+      description: >-
+        Replaces the user's roles and logins if `revision` is still current
+        (409 conflict otherwise). The management identity is refused (403
+        forbidden, detail.guard self_identity).
+      x-freya-permission: 'users:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateUser' } } }
+      responses:
+        '200': { description: updated, content: { application/json: { schema: { $ref: '#/components/schemas/TeleportUser' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteTeleportUser
+      description: Deletes the user. The management identity is refused (403 forbidden, detail.guard self_identity).
+      x-freya-permission: 'users:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/users/{name}/reset:
+    parameters: [{ $ref: '#/components/parameters/id' }, { $ref: '#/components/parameters/name' }]
+    post:
+      operationId: resetTeleportUser
+      description: >-
+        Issues a reset link for the user's password and second factors,
+        returned once. The management identity is refused.
+      x-freya-permission: 'users:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '200': { description: the reset link, content: { application/json: { schema: { $ref: '#/components/schemas/ResetLink' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Roles (US2)
+  /api/teleport/v1/clusters/{id}/roles:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportRoles
+      x-freya-permission: 'roles:read'
+      parameters:
+        - { $ref: '#/components/parameters/next' }
+        - { $ref: '#/components/parameters/pageSize' }
+      responses:
+        '200': { description: one page of roles, content: { application/json: { schema: { $ref: '#/components/schemas/RolePage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/roles:preview:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: previewTeleportRole
+      description: >-
+        Validates a definition and diffs its normal form against the current
+        role. No side effects; an invalid definition is a 200 with valid=false.
+      x-freya-permission: 'roles:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PreviewRole' } } }
+      responses:
+        '200': { description: the preview, content: { application/json: { schema: { $ref: '#/components/schemas/RolePreview' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/roles/{name}:
+    parameters: [{ $ref: '#/components/parameters/id' }, { $ref: '#/components/parameters/name' }]
+    get:
+      operationId: getTeleportRole
+      x-freya-permission: 'roles:read'
+      responses:
+        '200': { description: the role as YAML, content: { application/json: { schema: { $ref: '#/components/schemas/RoleDefinition' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    put:
+      operationId: putTeleportRole
+      description: >-
+        Creates the role when `revision` is empty (409 conflict if it
+        exists), otherwise updates it if `revision` is still current (409
+        conflict otherwise). metadata.name must match the path. Refusals:
+        422 validation_failed (detail.message explains), 422
+        teleport_rejected (detail.message is Teleport's first line).
+      x-freya-permission: 'roles:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PutRole' } } }
+      responses:
+        '200': { description: applied, content: { application/json: { schema: { $ref: '#/components/schemas/TeleportRole' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteTeleportRole
+      description: >-
+        Deletes the role. Refused with 403 forbidden for Teleport built-in
+        roles (detail.guard preset_role) and roles the management identity
+        holds (detail.guard management_role).
+      x-freya-permission: 'roles:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: deleted }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Locks (US2)
+  /api/teleport/v1/clusters/{id}/locks:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportLocks
+      description: The locks in force.
+      x-freya-permission: 'locks:read'
+      responses:
+        '200': { description: the active locks, content: { application/json: { schema: { $ref: '#/components/schemas/LockPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportLock
+      description: >-
+        Locks a user, role or server. A reason is required. Locks that would
+        affect the management identity are refused with 403 forbidden
+        (detail.guard self_identity or management_role).
+      x-freya-permission: 'locks:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateLock' } } }
+      responses:
+        '201': { description: locked, content: { application/json: { schema: { $ref: '#/components/schemas/TeleportLock' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/locks/{name}:
+    parameters: [{ $ref: '#/components/parameters/id' }, { $ref: '#/components/parameters/name' }]
+    delete:
+      operationId: deleteTeleportLock
+      x-freya-permission: 'locks:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: removed }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/tokens:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportJoinTokens
+      description: Join tokens issued through the module (never their values).
+      x-freya-permission: 'tokens:manage'
+      responses:
+        '200': { description: the tokens, content: { application/json: { schema: { $ref: '#/components/schemas/TokenPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportJoinToken
+      description: >-
+        Issues a short-lived join token for one resource type with its install
+        command and configuration snippet. The token value, command and
+        snippet are one-time: they appear only in this response.
+      x-freya-permission: 'tokens:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateToken' } } }
+      responses:
+        '201': { description: issued, content: { application/json: { schema: { $ref: '#/components/schemas/TokenCreated' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/tokens/{tid}:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: tid, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      operationId: revokeTeleportJoinToken
+      x-freya-permission: 'tokens:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: revoked }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/resources:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportResources
+      description: >-
+        Enrolled resources: live ones from Teleport merged with offline and
+        flagged ones from the last-known state, with their inventory/asset links.
+      x-freya-permission: 'resources:read'
+      parameters:
+        - { name: kind, in: query, required: false, schema: { $ref: '#/components/schemas/ResourceKind' } }
+        - { name: label, in: query, required: false, description: 'key=value', schema: { type: string, maxLength: 256 } }
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [online, offline, flagged] } }
+        - { $ref: '#/components/parameters/next' }
+        - { $ref: '#/components/parameters/pageSize' }
+      responses:
+        '200': { description: one page, content: { application/json: { schema: { $ref: '#/components/schemas/ResourcePage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/resources/{rid}/links:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: confirmTeleportResourceLink
+      description: Confirms a link to an inventory or asset record (replacing the other candidates of that module).
+      x-freya-permission: 'resources:link'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateLink' } } }
+      responses:
+        '201': { description: confirmed, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceLink' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/resources/{rid}/links/{lid}:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: lid, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      operationId: removeTeleportResourceLink
+      x-freya-permission: 'resources:link'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: removed }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Audit and alerts (US4)
+  /api/teleport/v1/clusters/{id}/events:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: searchTeleportEvents
+      description: >-
+        Teleport audit events in a window of at most 31 days, newest first,
+        normalized. Only allow-listed event types are searched (all of them
+        when types is absent). user (exact, case-insensitive) and resource
+        (substring) filter the events read; when they drop events, further
+        Teleport pages are read so a page fills up. A missing or longer
+        window is 422 validation_failed.
+      x-freya-permission: 'audit:read'
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: types, in: query, required: false, style: form, explode: true, schema: { type: array, maxItems: 32, items: { $ref: '#/components/schemas/EventType' } } }
+        - { name: user, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: resource, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { $ref: '#/components/parameters/next' }
+      responses:
+        '200': { description: one page of events, content: { application/json: { schema: { $ref: '#/components/schemas/AuditEventPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/sessions:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: searchTeleportSessions
+      description: Recorded sessions that ended in the window (at most 31 days), newest first, with a playback link into the Teleport web UI.
+      x-freya-permission: 'audit:read'
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { $ref: '#/components/parameters/next' }
+      responses:
+        '200': { description: one page of sessions, content: { application/json: { schema: { $ref: '#/components/schemas/SessionPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/audit:
+    get:
+      operationId: listTeleportModuleAudit
+      description: The module's own audit trail for the tenant (platform list contract; by time, newest first by default).
+      x-freya-permission: 'audit:read'
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/pageSize' }
+        - { name: sort, in: query, required: false, schema: { type: string, enum: [time] } }
+        - { $ref: '#/components/parameters/order' }
+        - { name: cluster_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: action, in: query, required: false, schema: { type: string, maxLength: 64 } }
+        - { name: outcome, in: query, required: false, schema: { type: string, enum: [success, failure, unknown] } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: one page of audit records, content: { application/json: { schema: { $ref: '#/components/schemas/AuditRecordPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/alert-rules:
+    get:
+      operationId: listTeleportAlertRules
+      x-freya-permission: 'alerts:read'
+      responses:
+        '200': { description: the tenant's alert rules, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRulePage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportAlertRule
+      x-freya-permission: 'alerts:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AlertRuleInput' } } }
+      responses:
+        '201': { description: created, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/alert-rules/{id}:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    put:
+      operationId: updateTeleportAlertRule
+      x-freya-permission: 'alerts:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AlertRuleInput' } } }
+      responses:
+        '200': { description: updated, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteTeleportAlertRule
+      x-freya-permission: 'alerts:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: deleted }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Provisioning (US5)
+  /api/teleport/v1/clusters/{id}/mappings:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportRoleMappings
+      x-freya-permission: 'users:read'
+      responses:
+        '200': { description: the cluster's role mappings, content: { application/json: { schema: { $ref: '#/components/schemas/RoleMappingPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportRoleMapping
+      description: >-
+        Adds a mapping (administrators only, SR-005). A Teleport role the
+        cluster lacks is 422 validation_failed (detail.field teleport_roles);
+        a mapping for the same subject is 409 conflict.
+      x-freya-permission: 'provisioning:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RoleMappingInput' } } }
+      responses:
+        '201': { description: created, content: { application/json: { schema: { $ref: '#/components/schemas/RoleMapping' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/mappings/{mid}:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: mid, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: updateTeleportRoleMapping
+      x-freya-permission: 'provisioning:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RoleMappingUpdate' } } }
+      responses:
+        '200': { description: updated, content: { application/json: { schema: { $ref: '#/components/schemas/RoleMapping' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteTeleportRoleMapping
+      description: Removes the mapping; users it provisioned are locked at the next sync if no other mapping matches them.
+      x-freya-permission: 'provisioning:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/managed-users:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listTeleportManagedUsers
+      x-freya-permission: 'users:read'
+      responses:
+        '200': { description: the users tangra provisioned on the cluster, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUserPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: provisionTeleportUser
+      description: >-
+        Provisions one tangra member now; the member is re-verified with auth
+        and the invite goes out through notification (never in this
+        response). 422 validation_failed when the user is not a member or no
+        mapping matches; 409 conflict when already managed; 503
+        dependency_unavailable (detail.dependency auth or notification).
+      x-freya-permission: 'provisioning:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProvisionUser' } } }
+      responses:
+        '201': { description: provisioned, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/provisioning:sync:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: syncTeleportProvisioning
+      description: >-
+        Runs a sync now: provisions, updates, locks, unlocks and deletes
+        (after the grace period) managed users. Unmanaged users are never
+        changed. 503 dependency_unavailable (detail.dependency auth) when
+        the tenant's membership cannot be read; nothing is changed then.
+      x-freya-permission: 'provisioning:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '200': { description: the summary, content: { application/json: { schema: { $ref: '#/components/schemas/ProvisioningSummary' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Deployment wizard (US6)
+  /api/teleport/v1/deployments:
+    get:
+      operationId: listTeleportDeployments
+      x-freya-permission: 'deployments:manage'
+      responses:
+        '200': { description: "the tenant's drafts, newest first", content: { application/json: { schema: { $ref: '#/components/schemas/DraftPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createTeleportDeployment
+      x-freya-permission: 'deployments:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DraftInput' } } }
+      responses:
+        '201': { description: created, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/deployments/{id}:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: getTeleportDeployment
+      x-freya-permission: 'deployments:manage'
+      responses:
+        '200': { description: the draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    put:
+      operationId: updateTeleportDeployment
+      description: Replaces the inputs; a new domain clears the stored checks.
+      x-freya-permission: 'deployments:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DraftInput' } } }
+      responses:
+        '200': { description: updated, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteTeleportDeployment
+      x-freya-permission: 'deployments:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/deployments/{id}/artifacts/{name}:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: name, in: path, required: true, schema: { $ref: '#/components/schemas/ArtifactName' } }
+    get:
+      operationId: getTeleportDeploymentArtifact
+      description: Renders one artifact from the draft (never stored), as a text/plain attachment.
+      x-freya-permission: 'deployments:manage'
+      responses:
+        '200':
+          description: the artifact
+          headers:
+            Content-Disposition: { schema: { type: string } }
+          content: { text/plain: { schema: { type: string } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/deployments/{id}/checks:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: checkTeleportDeployment
+      description: >-
+        Runs the dns_apex, dns_wildcard and tls_443 checks through netguard
+        (private, loopback, link-local and metadata targets are refused unless
+        the deployment allows a private range) and stores the results. At
+        most one run per draft every 10 s (429 rate_limited).
+      x-freya-permission: 'deployments:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '200': { description: the draft with its checks, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        default: { $ref: '#/components/responses/Error' }

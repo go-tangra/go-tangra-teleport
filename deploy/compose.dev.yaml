@@ -1,0 +1,115 @@
+# Development overlay: adds the teleport module to the core freya-stack
+# (go-tangra/deploy/stack/compose.yaml) without changing it. Used by
+# `make compose-up` from this repository:
+#
+#   docker compose -p freya-stack --project-directory $(CORE_STACK) \
+#     -f $(CORE_STACK)/compose.yaml -f deploy/compose.dev.yaml up -d teleport
+#
+# Relative paths resolve against the core stack directory (the project
+# directory); this repository's files are reached through TELEPORT_REPO
+# (exported by the Makefile as its absolute path). Workstation credentials
+# only. See deploy/README.md for what this changes in the core stack.
+services:
+  # Database "teleport" and its application role in the stack TimescaleDB
+  # (no BYPASSRLS: row-level security backs every tenant predicate).
+  teleport-db-init:
+    image: timescale/timescaledb:2.17.2-pg16
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -eu
+        export PGPASSWORD=dev
+        psql -h timescaledb -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='teleport'" | grep -q 1 ||
+          psql -v ON_ERROR_STOP=1 -h timescaledb -U postgres -c "CREATE DATABASE teleport"
+        psql -v ON_ERROR_STOP=1 -h timescaledb -U postgres -d teleport <<'SQL'
+        CREATE EXTENSION IF NOT EXISTS timescaledb;
+        DO $$$$ BEGIN
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'teleport_app') THEN
+            CREATE ROLE teleport_app LOGIN PASSWORD 'dev' NOBYPASSRLS;
+          END IF;
+        END $$$$;
+        GRANT CONNECT ON DATABASE teleport TO teleport_app;
+        SQL
+    restart: "no"
+    depends_on:
+      timescaledb: { condition: service_healthy }
+
+  # The Valkey user "teleport" (event stream, watcher leases, read cache).
+  # The core stack's valkey is started with a fixed user list; ACL SETUSER
+  # adds this one at run time (lost when valkey restarts: run
+  # `make compose-up` again).
+  teleport-valkey-user:
+    image: valkey/valkey:8-alpine
+    entrypoint: ["sh", "-c"]
+    command:
+      - valkey-cli -h valkey -a dev --no-auth-warning ACL SETUSER teleport on '>dev' '~*' '&*' '+@all'
+    restart: "no"
+    depends_on:
+      valkey: { condition: service_healthy }
+
+  # The gateway allow-list entry for the module (routes /api/teleport, name
+  # teleport), applied with the gateway's own bootstrap (idempotent).
+  teleport-gateway-allow:
+    image: ghcr.io/go-tangra/go-tangra-portal:${TANGRA_VERSION:-4.0.0}
+    command: ["bootstrap", "-config", "deploy/container.yaml", "-allow", "spiffe://example.org/svc/teleport=/api/teleport;teleport"]
+    volumes: ["certs:/certs:ro", "./configs/gateway.yaml:/app/deploy/container.yaml:ro"]
+    restart: "no"
+    depends_on:
+      timescaledb: { condition: service_healthy }
+      lcm-bootstrap: { condition: service_completed_successfully }
+
+  # Mint teleport's single-use join token (enrolls via the gateway edge).
+  teleport-token:
+    image: ghcr.io/go-tangra/go-tangra-auth:${TANGRA_VERSION:-4.0.0}
+    user: "0:0"
+    command: ["mint-enrollment-token", "-config", "deploy/container.yaml", "-spiffe", "spiffe://example.org/svc/teleport", "-ttl", "30m", "-out", "/tokens/teleport.token"]
+    volumes: ["./keys/auth.kek:/app/deploy/dev-kek.b64:ro", "tokens:/tokens", "certs:/certs:ro", "./configs/auth.yaml:/app/deploy/container.yaml:ro"]
+    restart: "no"
+    depends_on:
+      timescaledb: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      openfga: { condition: service_started }
+      auth-bootstrap: { condition: service_completed_successfully }
+
+  # teleport: Teleport cluster management. Built from this checkout
+  # (`make image`, tag go-tangra-teleport:dev) unless TELEPORT_IMAGE names
+  # another image. Development config: deploy/container.yaml (plaintext
+  # Valkey, sslmode=disable, file-backed credentials under /state, insecure
+  # enrolment; all refused in production).
+  teleport:
+    image: ${TELEPORT_IMAGE:-go-tangra-teleport:dev}
+    user: "0:0"
+    command: ["-config", "deploy/container.yaml"]
+    volumes:
+      - "tokens:/tokens:ro"
+      - "teleport-state:/state"
+      - "${TELEPORT_REPO:-.}/deploy/container.yaml:/app/deploy/container.yaml:ro"
+      - "${TELEPORT_REPO:-.}/deploy/policy.yaml:/app/deploy/policy.yaml:ro"
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9870/readyz"], interval: 5s, timeout: 3s, retries: 60, start_period: 10s }
+    depends_on:
+      timescaledb: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      gateway: { condition: service_healthy }
+      lcm: { condition: service_healthy }
+      lcm-bootstrap: { condition: service_completed_successfully }
+      teleport-db-init: { condition: service_completed_successfully }
+      teleport-valkey-user: { condition: service_completed_successfully }
+      teleport-gateway-allow: { condition: service_completed_successfully }
+      teleport-token: { condition: service_completed_successfully }
+
+  # Optional (profile teleport-ce): a single-node Teleport Community Edition
+  # cluster for quickstart.md. Its proxy is reachable from the module at
+  # teleport-ce:3080 on the stack network; registering it needs the
+  # stack subnet in teleport.allowed_private_networks (see deploy/README.md).
+  teleport-ce:
+    image: ${TELEPORT_CE_IMAGE:-public.ecr.aws/gravitational/teleport-distroless:18}
+    profiles: ["teleport-ce"]
+    entrypoint: ["teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+    volumes:
+      - "${TELEPORT_REPO:-.}/deploy/teleport-ce.yaml:/etc/teleport/teleport.yaml:ro"
+      - "teleport-ce-data:/var/lib/teleport"
+    ports: ["127.0.0.1:3080:3080"]
+
+volumes:
+  teleport-state:
+  teleport-ce-data:

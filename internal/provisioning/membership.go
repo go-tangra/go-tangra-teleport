@@ -1,0 +1,145 @@
+package provisioning
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"sync"
+)
+
+// ErrMembershipUnavailable reports that the tenant's membership cannot be
+// read from auth (dependency_unavailable). Nothing is changed while it is.
+var ErrMembershipUnavailable = errors.New("provisioning: tangra membership unavailable")
+
+// Member is one active tangra member of a tenant as auth reports it.
+type Member struct {
+	UserID string
+	Login  string   // the tangra login; the Teleport username is derived from it (Username)
+	Roles  []string // module role slugs held in this module
+	Groups []string // group ids
+}
+
+func cloneMember(m Member) Member {
+	m.Roles, m.Groups = slices.Clone(m.Roles), slices.Clone(m.Groups)
+	return m
+}
+
+// Membership reads a tenant's members from auth over mTLS (research D10).
+// Members lists them for a sync; Member re-reads one member before any lock
+// or delete (SR-006), so a stale listing never de-provisions anyone. Both
+// answer ErrMembershipUnavailable (wrapped) when auth cannot be asked.
+type Membership interface {
+	Members(ctx context.Context, tenantID string) ([]Member, error)
+	// Member returns the member and true, or false when the user is no
+	// longer an active member of the tenant.
+	Member(ctx context.Context, tenantID, userID string) (Member, bool, error)
+}
+
+// Unavailable is the production membership until auth can list members with
+// their module roles, groups and login: the auth SDK (v4.1.0) offers only
+// Profiles.ListMembers (active ids, policy-limited to the notification
+// module) and Profiles.Lookup (display names). Every read is
+// ErrMembershipUnavailable, so provisioning reports dependency_unavailable
+// and changes nothing (plan.md deviations, Phase 7). NEEDS CROSS-REPO.
+type Unavailable struct{}
+
+// Members implements Membership.
+func (Unavailable) Members(context.Context, string) ([]Member, error) {
+	return nil, ErrMembershipUnavailable
+}
+
+// Member implements Membership.
+func (Unavailable) Member(context.Context, string, string) (Member, bool, error) {
+	return Member{}, false, ErrMembershipUnavailable
+}
+
+// FakeMembership is an in-memory Membership for tests. Set replaces both the
+// listing and the members auth confirms; SetListed replaces the listing
+// only (a stale page or a forged hint), so re-verification can be tested.
+type FakeMembership struct {
+	mu        sync.Mutex
+	listed    []Member
+	current   map[string]Member
+	err       error
+	memberErr error
+}
+
+// NewFakeMembership builds a fake with members.
+func NewFakeMembership(members ...Member) *FakeMembership {
+	f := &FakeMembership{}
+	f.Set(members...)
+	return f
+}
+
+// Set makes members the listing and the confirmed truth; errors are cleared.
+func (f *FakeMembership) Set(members ...Member) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.current = map[string]Member{}
+	for _, m := range members {
+		f.current[m.UserID] = cloneMember(m)
+	}
+	f.listed = nil
+	for _, m := range members {
+		f.listed = append(f.listed, cloneMember(m))
+	}
+	f.err, f.memberErr = nil, nil
+}
+
+// SetListed replaces the listing only.
+func (f *FakeMembership) SetListed(members ...Member) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listed = nil
+	for _, m := range members {
+		f.listed = append(f.listed, cloneMember(m))
+	}
+}
+
+// SetErr fails every read with err (wrapped in ErrMembershipUnavailable).
+func (f *FakeMembership) SetErr(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.err, f.memberErr = err, err
+}
+
+// SetMemberErr fails the re-verification reads only.
+func (f *FakeMembership) SetMemberErr(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.memberErr = err
+}
+
+func unavailable(err error) error {
+	return errors.Join(ErrMembershipUnavailable, err)
+}
+
+// Members implements Membership.
+func (f *FakeMembership) Members(context.Context, string) ([]Member, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, unavailable(f.err)
+	}
+	out := make([]Member, 0, len(f.listed))
+	for _, m := range f.listed {
+		out = append(out, cloneMember(m))
+	}
+	return out, nil
+}
+
+// Member implements Membership.
+func (f *FakeMembership) Member(_ context.Context, _, userID string) (Member, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.memberErr != nil {
+		return Member{}, false, unavailable(f.memberErr)
+	}
+	m, ok := f.current[userID]
+	return cloneMember(m), ok, nil
+}
+
+var (
+	_ Membership = Unavailable{}
+	_ Membership = (*FakeMembership)(nil)
+)
