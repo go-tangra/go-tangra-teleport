@@ -65,6 +65,23 @@ func TestAccessOnlyFromInventoryAssetPortal(t *testing.T) {
 	}
 }
 
+// Spec 002: only inventory renders an enrollment's join material.
+func TestJoinSourceOnlyFromInventory(t *testing.T) {
+	p := load(t)
+	const op = "/inventory.v1.TeleportJoinSource/RenderTeleportJoin"
+	if !allowed(t, p, svc+"inventory", op) {
+		t.Fatal("inventory refused")
+	}
+	for _, peer := range []string{"gateway", "asset", "portal", "scheduler", "lcm", "teleport"} {
+		if allowed(t, p, svc+peer, op) {
+			t.Errorf("%s may render join material", peer)
+		}
+	}
+	if allowed(t, p, "spiffe://other.org/svc/inventory", op) {
+		t.Error("a foreign trust domain is admitted")
+	}
+}
+
 func TestTaskExecutorOnlyFromScheduler(t *testing.T) {
 	p := load(t)
 	const op = "/scheduler.v1.TaskExecutor/ExecuteTask"

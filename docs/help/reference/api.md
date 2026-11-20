@@ -95,6 +95,8 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET` and `POST /clusters/{id}/tokens`, `DELETE /clusters/{id}/tokens/{tid}` | `tokens:manage` |
 | `GET /clusters/{id}/resources` (`?kind=&label=key=value&q=&status=&next=`) | `resources:read` |
 | `POST /clusters/{id}/resources/{rid}/links`, `DELETE /clusters/{id}/resources/{rid}/links/{lid}` | `resources:link` |
+| `GET /clusters/{id}/enrollments` | `resources:read` |
+| `GET /clusters/{id}/enrollment-targets`, `POST /clusters/{id}/enrollments`, `POST /clusters/{id}/enrollments/{eid}/cancel`, `POST /clusters/{id}/enrollments/{eid}/retry` | `resources:enroll` |
 | `GET /clusters/{id}/events`, `GET /clusters/{id}/sessions`, `GET /audit` | `audit:read` |
 | `GET /alert-rules` | `alerts:read` |
 | `POST /alert-rules`, `PUT` and `DELETE /alert-rules/{id}` | `alerts:manage` |

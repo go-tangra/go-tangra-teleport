@@ -52,6 +52,7 @@ var Permissions = []gatewayclient.Permission{
 	{Resource: "tokens", Action: "manage", Description: "Create, list and revoke join tokens"},
 	{Resource: "resources", Action: "read", Description: "List enrolled resources and their inventory/asset links"},
 	{Resource: "resources", Action: "link", Description: "Confirm or remove inventory/asset links"},
+	{Resource: "resources", Action: "enroll", Description: "Enroll inventory hosts as SSH nodes through their inventory agent"},
 	{Resource: "audit", Action: "read", Description: "Read Teleport audit events and sessions and the module audit trail"},
 	{Resource: "alerts", Action: "read", Description: "List alert rules"},
 	{Resource: "alerts", Action: "manage", Description: "Create, edit and delete alert rules"},
@@ -82,7 +83,7 @@ func readPermissions() []string {
 // Permission sets of the module roles (contracts/http-api.md).
 var (
 	administratorPermissions = PermissionRefs()
-	operatorPermissions      = append(readPermissions(), "tokens:manage", "locks:manage", "resources:link")
+	operatorPermissions      = append(readPermissions(), "tokens:manage", "locks:manage", "resources:link", "resources:enroll")
 	auditorPermissions       = readPermissions()
 	viewerPermissions        = slices.DeleteFunc(readPermissions(), func(p string) bool { return p == "audit:read" })
 )
@@ -97,7 +98,7 @@ var Roles = []authclient.ModuleRole{
 	},
 	{
 		Slug: "operator", DisplayName: DisplayName + " operator",
-		Description: "Read everything; create join tokens, manage locks and confirm resource links",
+		Description: "Read everything; create join tokens, enroll inventory hosts, manage locks and confirm resource links",
 		Permissions: operatorPermissions,
 	},
 	{
@@ -142,6 +143,7 @@ var Abilities = []gatewayclient.Ability{
 	{Action: []string{"manage"}, Subject: []string{"TeleportToken"}, Requires: "tokens:manage"},
 	{Action: []string{"read"}, Subject: []string{"TeleportResource"}, Requires: "resources:read"},
 	{Action: []string{"link"}, Subject: []string{"TeleportResource"}, Requires: "resources:link"},
+	{Action: []string{"enroll"}, Subject: []string{"TeleportResource"}, Requires: "resources:enroll"},
 	{Action: []string{"read"}, Subject: []string{"TeleportAudit"}, Requires: "audit:read"},
 	{Action: []string{"read"}, Subject: []string{"TeleportAlertRule"}, Requires: "alerts:read"},
 	{Action: []string{"create", "update", "delete"}, Subject: []string{"TeleportAlertRule"}, Requires: "alerts:manage"},

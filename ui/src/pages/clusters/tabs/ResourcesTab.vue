@@ -9,10 +9,11 @@ import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiInput, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { explain } from '@/api/client'
-import { resourcesApi, type ResourceQuery } from '@/stores/resources'
-import type { Cluster, ResourceLink, ResourcePage, TeleportResource } from '@/api/types'
+import { enrollmentsApi, resourcesApi, type ResourceQuery } from '@/stores/resources'
+import type { Cluster, Enrollment, EnrollmentState, ResourceLink, ResourcePage, TeleportResource } from '@/api/types'
 import { formatTime } from '../status'
 import EnrollDialog from '@/components/EnrollDialog.vue'
+import InventoryEnrollDialog from '@/components/InventoryEnrollDialog.vue'
 
 const props = defineProps<{ cluster: Cluster }>()
 const ability = inject<AnyAbility | null>(ABILITY_TOKEN, null)
@@ -28,6 +29,47 @@ const loading = ref(false)
 const error = ref('')
 const notice = ref('')
 const enrolling = ref(false)
+const enrollingInventory = ref(false)
+const canEnrollInventory = computed(() => (ability ? ability.can('enroll', 'TeleportResource') : true) && !props.cluster.writes_blocked)
+
+// Spec 002: enrollments through the inventory agent.
+const enrollments = ref<Enrollment[]>([])
+const enrollmentsStale = ref(false)
+const ACTIVE: EnrollmentState[] = ['pending', 'delivered', 'fetched', 'installing']
+const RETRYABLE: EnrollmentState[] = ['failed', 'unsupported', 'expired', 'superseded', 'cancelled']
+const ENROLL_COLORS: Record<EnrollmentState, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
+  pending: 'neutral', delivered: 'info', fetched: 'info', installing: 'info', joined: 'success',
+  failed: 'error', unsupported: 'warning', superseded: 'neutral', expired: 'warning', cancelled: 'neutral',
+}
+async function loadEnrollments(): Promise<void> {
+  try {
+    const p = await enrollmentsApi.list(props.cluster.id)
+    enrollments.value = p.items
+    enrollmentsStale.value = p.stale
+  } catch (e) {
+    error.value = explain(e)
+  }
+}
+async function cancelEnrollment(x: Enrollment): Promise<void> {
+  const ok = await confirm.ask({ title: 'Cancel this enrollment?', text: `${x.hostname || x.host_id} will not join.`, confirmLabel: 'Cancel enrollment', danger: true })
+  if (!ok) return
+  try {
+    await enrollmentsApi.cancel(props.cluster.id, x.id)
+    notice.value = 'Enrollment cancelled.'
+    void loadEnrollments()
+  } catch (e) {
+    error.value = explain(e)
+  }
+}
+async function retryEnrollment(x: Enrollment): Promise<void> {
+  try {
+    await enrollmentsApi.retry(props.cluster.id, x.id)
+    notice.value = 'Enrollment restarted.'
+    void loadEnrollments()
+  } catch (e) {
+    error.value = explain(e)
+  }
+}
 
 async function load(more = false): Promise<void> {
   loading.value = true
@@ -43,7 +85,10 @@ async function load(more = false): Promise<void> {
     loading.value = false
   }
 }
-onMounted(() => void load())
+onMounted(() => {
+  void load()
+  void loadEnrollments()
+})
 
 const STATUS_COLORS = { online: 'success', offline: 'warning', flagged: 'error' } as const
 const kinds = [
@@ -114,6 +159,9 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
       <UiInput id="resources-label" v-model="filter.label" label="Label (key=value)" class="w-48" data-test="resources-label" @keyup.enter="load()" />
       <UiInput id="resources-q" v-model="filter.q" label="Search" class="w-48" data-test="resources-q" @keyup.enter="load()" />
       <div class="grow" />
+      <UiButton v-if="canEnrollInventory" variant="outline" icon="mdi-server-plus" data-test="resources-enroll-inventory" @click="enrollingInventory = true">
+        Enroll inventory hosts
+      </UiButton>
       <UiButton v-if="canEnroll" color="primary" icon="mdi-plus" data-test="resources-enroll" @click="enrolling = true">Enroll</UiButton>
     </div>
     <UiCard :padded="false">
@@ -139,6 +187,21 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
       <UiButton variant="text" :loading="loading" data-test="resources-more" @click="load(true)">Load more</UiButton>
     </div>
 
+    <UiCard v-if="enrollments.length" title="Inventory enrollments" data-test="enrollments">
+      <UiAlert v-if="enrollmentsStale" kind="info" class="mb-2">Inventory is unavailable: these are the last known states.</UiAlert>
+      <ul class="flex flex-col gap-2">
+        <li v-for="x in enrollments" :key="x.id" class="flex flex-wrap items-center gap-2" :data-test="'enrollment-' + x.id">
+          <span class="font-medium">{{ x.hostname || x.host_id }}</span>
+          <UiBadge :color="ENROLL_COLORS[x.state]">{{ x.state }}</UiBadge>
+          <span v-if="x.reason" class="text-xs opacity-70">{{ x.reason }}</span>
+          <span class="text-xs opacity-70">updated {{ formatTime(x.updated_at) }}</span>
+          <div class="grow" />
+          <UiButton v-if="canEnrollInventory && ACTIVE.includes(x.state)" size="sm" variant="text" icon="mdi-close" @click="cancelEnrollment(x)">Cancel</UiButton>
+          <UiButton v-if="canEnrollInventory && RETRYABLE.includes(x.state)" size="sm" variant="text" icon="mdi-refresh" @click="retryEnrollment(x)">Retry</UiButton>
+        </li>
+      </ul>
+    </UiCard>
+
     <UiDialog :model-value="linking !== null" title="Link resource" data-test="resource-link-dialog" @update:model-value="(v: boolean) => { if (!v) linking = null }">
       <div class="flex flex-col gap-4">
         <UiSelect id="resourcestab-module" v-model="linkModule" label="Module" :options="[{ title: 'Inventory', value: 'inventory' }, { title: 'Asset', value: 'asset' }]" :clearable="false" />
@@ -150,5 +213,6 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
       </template>
     </UiDialog>
     <EnrollDialog v-model="enrolling" :cluster="cluster" @issued="load()" />
+    <InventoryEnrollDialog v-model="enrollingInventory" :cluster="cluster" @created="loadEnrollments()" />
   </div>
 </template>

@@ -99,7 +99,7 @@ var reads = []string{"clusters:read", "users:read", "roles:read", "locks:read", 
 func TestRoles(t *testing.T) {
 	want := map[string][]string{
 		"administrator": authz.Permissions,
-		"operator":      append(slices.Clone(reads), "tokens:manage", "locks:manage", "resources:link"),
+		"operator":      append(slices.Clone(reads), "tokens:manage", "locks:manage", "resources:link", "resources:enroll"),
 		"auditor":       reads,
 		"viewer":        slices.DeleteFunc(slices.Clone(reads), func(p string) bool { return p == "audit:read" }),
 	}

@@ -37,7 +37,11 @@ func TestAccessGRPCRefusals(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := &grpcapi.AccessServer{}
-	grpcapi.Register(registrar{func(s any) { srv = s.(*grpcapi.AccessServer) }}, grpcapi.Deps{Resources: rs, Audit: e.Audit})
+	grpcapi.Register(registrar{func(s any) {
+		if a, ok := s.(*grpcapi.AccessServer); ok {
+			srv = a
+		}
+	}}, grpcapi.Deps{Resources: rs, Audit: e.Audit})
 
 	code := func(err error) codes.Code { return status.Code(err) }
 	for _, svc := range []string{"billing", "teleport", "", "inventory-evil"} {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
@@ -54,6 +55,13 @@ func (s *stubEnroll) ListProvisionTokens(_ context.Context, _ int, next string, 
 func (s *stubEnroll) DeleteToken(_ context.Context, name string) error {
 	s.deleted = name
 	return s.err
+}
+
+func (s *stubEnroll) GetClusterCACert(context.Context) (*proto.GetClusterCACertResponse, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &proto.GetClusterCACertResponse{TLSCA: fakeCA()}, nil
 }
 
 func (s *stubEnroll) NewWatcher(_ context.Context, w types.Watch) (types.Watcher, error) {
@@ -382,5 +390,18 @@ func TestOpaqueDropsDetail(t *testing.T) {
 	}
 	if err := opaque(trace.AccessDenied("x")); !errors.Is(err, ErrAccessDenied) {
 		t.Fatalf("denial lost: %v", err)
+	}
+}
+
+func TestRealCAPins(t *testing.T) {
+	st := &stubEnroll{}
+	c := Limit(&real{e: st}, Limits{})
+	pins, err := c.CAPins(context.Background())
+	if err != nil || len(pins) != 1 {
+		t.Fatalf("pins %v %v", pins, err)
+	}
+	st.err = trace.AccessDenied("denied")
+	if _, err := c.CAPins(context.Background()); err == nil {
+		t.Fatal("error ignored")
 	}
 }

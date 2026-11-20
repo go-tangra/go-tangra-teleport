@@ -25,7 +25,7 @@ var ctx = context.Background()
 // contractPermissions is the permission table of contracts/http-api.md.
 var contractPermissions = []string{
 	"clusters:read", "clusters:manage", "users:read", "users:manage", "roles:read", "roles:manage",
-	"locks:read", "locks:manage", "tokens:manage", "resources:read", "resources:link", "audit:read",
+	"locks:read", "locks:manage", "tokens:manage", "resources:read", "resources:link", "resources:enroll", "audit:read",
 	"alerts:read", "alerts:manage", "provisioning:manage", "deployments:manage",
 }
 

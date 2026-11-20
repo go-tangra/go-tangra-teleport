@@ -61,6 +61,7 @@ const (
 	TokensManage       = "tokens:manage"
 	ResourcesRead      = "resources:read"
 	ResourcesLink      = "resources:link"
+	ResourcesEnroll    = "resources:enroll"
 	AuditRead          = "audit:read"
 	AlertsRead         = "alerts:read"
 	AlertsManage       = "alerts:manage"
@@ -71,7 +72,7 @@ const (
 // Permissions lists every module permission.
 var Permissions = []string{
 	ClustersRead, ClustersManage, UsersRead, UsersManage, RolesRead, RolesManage, LocksRead, LocksManage,
-	TokensManage, ResourcesRead, ResourcesLink, AuditRead, AlertsRead, AlertsManage, ProvisioningManage, DeploymentsManage,
+	TokensManage, ResourcesRead, ResourcesLink, ResourcesEnroll, AuditRead, AlertsRead, AlertsManage, ProvisioningManage, DeploymentsManage,
 }
 
 // moduleAllowed is what a mesh peer may do (contracts/grpc.md: Access is read-only).
@@ -79,10 +80,12 @@ var moduleAllowed = map[string]bool{ClustersRead: true, ResourcesRead: true}
 
 // workerAllowed is what a background job may do within its tenant: health
 // and status, inventory sync and links, provisioning (users and locks),
-// alert evaluation. Roles, join tokens and deployments stay human-only.
+// alert evaluation, and fulfilling enrollments a user created (spec 002:
+// the join token is minted when the agent fetches it). Roles, standalone
+// join tokens and deployments stay human-only.
 var workerAllowed = map[string]bool{
 	ClustersRead: true, ClustersManage: true, UsersRead: true, UsersManage: true, LocksRead: true, LocksManage: true,
-	ResourcesRead: true, ResourcesLink: true, AuditRead: true, AlertsRead: true, ProvisioningManage: true,
+	ResourcesRead: true, ResourcesLink: true, ResourcesEnroll: true, AuditRead: true, AlertsRead: true, ProvisioningManage: true,
 }
 
 // Subjects is the authenticated caller.

@@ -149,6 +149,50 @@ type JoinToken struct {
 	CreatedAt    time.Time
 }
 
+// Enrollment states (spec 002; mirror inventory's TeleportJoinState).
+const (
+	EnrollPending     = "pending"
+	EnrollDelivered   = "delivered"
+	EnrollFetched     = "fetched"
+	EnrollInstalling  = "installing"
+	EnrollJoined      = "joined"
+	EnrollFailed      = "failed"
+	EnrollUnsupported = "unsupported"
+	EnrollSuperseded  = "superseded"
+	EnrollExpired     = "expired"
+	EnrollCancelled   = "cancelled"
+)
+
+// EnrollActive reports whether an enrollment state is not final.
+func EnrollActive(state string) bool {
+	switch state {
+	case EnrollPending, EnrollDelivered, EnrollFetched, EnrollInstalling:
+		return true
+	}
+	return false
+}
+
+// Enrollment is one inventory host being enrolled as a Teleport SSH node
+// through its inventory agent (spec 002). The join token is never stored:
+// it is minted when the agent fetches the material (Renders counts that).
+type Enrollment struct {
+	ID           string
+	TenantID     string
+	ClusterID    string
+	HostID       string // inventory host id
+	Hostname     string
+	State        string
+	Reason       string
+	ItemID       string // inventory's join item
+	Renders      int
+	NodeHostUUID string
+	LinkID       string // resource link created on joined
+	ExpiresAt    time.Time
+	CreatedBy    string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 // ResourceSnapshot is the last-known state of an enrolled resource.
 type ResourceSnapshot struct {
 	ID           string
@@ -414,6 +458,24 @@ type Drafts interface {
 	DeleteDraft(ctx context.Context, tenantID, id string) error
 }
 
+// Enrollments is the inventory-agent enrollment surface (spec 002).
+type Enrollments interface {
+	CreateEnrollment(ctx context.Context, e Enrollment) error
+	GetEnrollment(ctx context.Context, tenantID, id string) (Enrollment, error)
+	// ListEnrollments returns the cluster's enrollments, newest first.
+	ListEnrollments(ctx context.Context, tenantID, clusterID string) ([]Enrollment, error)
+	// UpdateEnrollment writes state, reason, item, node uuid, link and
+	// updated_at (ErrNotFound when absent).
+	UpdateEnrollment(ctx context.Context, e Enrollment) (Enrollment, error)
+	// AddEnrollmentRender counts one render if fewer than max were made
+	// (ErrConflict when the budget is spent, ErrNotFound when absent).
+	AddEnrollmentRender(ctx context.Context, tenantID, id string, max int) (Enrollment, error)
+	// ListActiveEnrollments returns every tenant's enrollments the sweep
+	// still follows: non-final ones, and joined ones not yet linked that
+	// have not expired; least recently updated first (system scope).
+	ListActiveEnrollments(ctx context.Context, limit int) ([]Enrollment, error)
+}
+
 // Store is the full persistence contract.
 type Store interface {
 	Clusters
@@ -425,6 +487,7 @@ type Store interface {
 	AlertRules
 	AlertState
 	Drafts
+	Enrollments
 	// AppendAudit persists an audit row (system scope).
 	AppendAudit(ctx context.Context, row AuditRow) error
 	// ListAudit returns one page of the tenant's audit rows and the total

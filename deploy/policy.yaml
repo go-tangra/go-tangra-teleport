@@ -1,7 +1,9 @@
 # Freya service-to-service policy for teleport (contracts/grpc.md). Deny by
 # default: only the rules below admit a caller. The gateway forwards browser
 # traffic and probes health; inventory, asset and portal may read Teleport
-# reachability (teleport.v1.Access, read-only); the scheduler alone may run
+# reachability (teleport.v1.Access, read-only); inventory alone may render
+# an enrollment's join material (inventory.v1.TeleportJoinSource, spec 002,
+# when the host's agent fetches it); the scheduler alone may run
 # the module's periodic tasks (scheduler.v1.TaskExecutor). teleport itself
 # calls auth, warden, inventory, asset, notification and the scheduler
 # registrar as a client; those rules live in the callee's policy.
@@ -19,6 +21,11 @@ rules:
     from: ["spiffe://example.org/svc/inventory", "spiffe://example.org/svc/asset", "spiffe://example.org/svc/portal"]
     to: ["teleport"]
     operations: ["/teleport.v1.Access/LookupHost", "/teleport.v1.Access/GetLinks", "/grpc.health.v1.Health/Check"]
+    effect: allow
+  - id: inventory-join-source
+    from: ["spiffe://example.org/svc/inventory"]
+    to: ["teleport"]
+    operations: ["/inventory.v1.TeleportJoinSource/RenderTeleportJoin"]
     effect: allow
   - id: scheduler-tasks
     from: ["spiffe://example.org/svc/scheduler"]

@@ -55,6 +55,12 @@ const (
 	TokenCreate Action = "teleport.token.create"
 	TokenRevoke Action = "teleport.token.revoke"
 
+	EnrollmentCreate Action = "teleport.enrollment.create"
+	EnrollmentRender Action = "teleport.enrollment.render"
+	EnrollmentReport Action = "teleport.enrollment.report"
+	EnrollmentCancel Action = "teleport.enrollment.cancel"
+	EnrollmentRetry  Action = "teleport.enrollment.retry"
+
 	LinkConfirm Action = "teleport.link.confirm"
 	LinkRemove  Action = "teleport.link.remove"
 
@@ -91,6 +97,7 @@ var Vocabulary = []Action{
 	RoleCreate, RoleUpdate, RoleDelete,
 	LockCreate, LockDelete,
 	TokenCreate, TokenRevoke,
+	EnrollmentCreate, EnrollmentRender, EnrollmentReport, EnrollmentCancel, EnrollmentRetry,
 	LinkConfirm, LinkRemove,
 	MappingCreate, MappingUpdate, MappingDelete,
 	ProvisionCreate, ProvisionSync, ProvisionLock, ProvisionDelete,
@@ -108,6 +115,7 @@ const (
 	TargetRole        = "role"
 	TargetLock        = "lock"
 	TargetToken       = "token"
+	TargetEnrollment  = "enrollment"
 	TargetResource    = "resource"
 	TargetLink        = "link"
 	TargetMapping     = "mapping"
@@ -120,7 +128,7 @@ const (
 
 // TargetKinds lists every target kind.
 var TargetKinds = []string{
-	TargetCluster, TargetCredential, TargetUser, TargetRole, TargetLock, TargetToken, TargetResource, TargetLink,
+	TargetCluster, TargetCredential, TargetUser, TargetRole, TargetLock, TargetToken, TargetEnrollment, TargetResource, TargetLink,
 	TargetMapping, TargetManagedUser, TargetAlertRule, TargetDeployment, TargetBackup, TargetSystem,
 }
 

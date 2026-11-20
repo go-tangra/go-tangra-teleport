@@ -82,6 +82,8 @@ github.com/go-playground/form/v4 v4.3.0 h1:OVttojbQv2WNCs4P+VnjPtrt/+30Ipw4890W3
 github.com/go-playground/form/v4 v4.3.0/go.mod h1:Cpe1iYJKoXb1vILRXEwxpWMGWyQuqplQ/4cvPecy+Jo=
 github.com/go-tangra/go-tangra-auth/sdk/v4 v4.1.0 h1:q6+AsniLuSmSj6/NBuDdWDwHFCmQD4aF+boWeMiecfQ=
 github.com/go-tangra/go-tangra-auth/sdk/v4 v4.1.0/go.mod h1:kzKB/d8rnaEIYH2ZS5kQWAXXz8zdhfndytNs/dvQfOM=
+github.com/go-tangra/go-tangra-inventory/sdk/v4 v4.5.1-0.20261120065852-ac8eac58acce h1:sbXs+PUi4kK4e1g/NXHuq8cguysQ0dFfx+F/ENiMQII=
+github.com/go-tangra/go-tangra-inventory/sdk/v4 v4.5.1-0.20261120065852-ac8eac58acce/go.mod h1:Vj2/MYHQM3W1/SpFlvZ5FB1c8HrlCd4iff0D46Mh3Co=
 github.com/go-tangra/go-tangra-lcm/sdk/v4 v4.2.0 h1:XBNcxwgyDEtHE60Q98j2dyV8QOWqLd2CbGtMJQCNeMw=
 github.com/go-tangra/go-tangra-lcm/sdk/v4 v4.2.0/go.mod h1:j/24DHoyBPfYcHzehJKkQLL/s1jDPToGr/LqV/qA/HM=
 github.com/go-tangra/go-tangra-notification/sdk/v4 v4.2.0 h1:/3FczTz9n8Pq1vcOU6rWuXcyvixIaXV/TSsBpciKIi0=
