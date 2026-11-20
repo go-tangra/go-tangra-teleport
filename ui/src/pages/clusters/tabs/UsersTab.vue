@@ -11,7 +11,7 @@ import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiIn
 import { useZodForm } from '@go-tangra/ui/forms'
 import { ApiError, explain } from '@/api/client'
 import { usersApi } from '@/stores/identity'
-import { userSchema, userEditSchema, type UserForm, type UserEditForm } from '@/schemas'
+import { userSchema, userEditSchema } from '@/schemas'
 import type { Cluster, ResetLink, TeleportUser, UserCreated } from '@/api/types'
 import OneTimeLink from '@/components/OneTimeLink.vue'
 import { formatTime } from '../status'
@@ -58,8 +58,7 @@ const creating = ref(false)
 const created = ref<UserCreated | null>(null)
 const createForm = useZodForm(userSchema, {
   onSubmit: (v) => {
-    const u = userSchema.parse(v as UserForm)
-    return usersApi.create(props.cluster.id, u)
+    return usersApi.create(props.cluster.id, v)
   },
   onSuccess: (r) => {
     created.value = r as UserCreated
@@ -89,8 +88,7 @@ const editing = ref<TeleportUser | null>(null)
 const editForm = useZodForm(userEditSchema, {
   onSubmit: (v) => {
     const u = editing.value as TeleportUser
-    const parsed = userEditSchema.parse(v as UserEditForm)
-    return usersApi.update(props.cluster.id, u.name, { ...parsed, revision: u.revision })
+    return usersApi.update(props.cluster.id, u.name, { ...v, revision: u.revision })
   },
   onSuccess: () => {
     editing.value = null
@@ -152,8 +150,10 @@ async function remove(u: TeleportUser): Promise<void> {
       <UiButton v-if="can('create') && writable" icon="mdi-account-plus" data-test="user-new" @click="openCreate">New user</UiButton>
     </div>
     <UiCard :padded="false">
-      <UiDataTable :items="items" :columns="columns" row-key="name" :loading="loading" :has-more="!!next" caption="Teleport users"
-        empty-title="No users" empty-text="No Teleport user matches." data-test="users-table" @load-more="load(true)">
+      <UiDataTable
+        :items="items" :columns="columns" row-key="name" :loading="loading" :has-more="!!next" caption="Teleport users"
+        empty-title="No users" empty-text="No Teleport user matches." data-test="users-table" @load-more="load(true)"
+      >
         <template #cell-name="{ row }">
           <div class="flex flex-wrap items-center gap-1">
             <span class="font-mono">{{ row.name }}</span>

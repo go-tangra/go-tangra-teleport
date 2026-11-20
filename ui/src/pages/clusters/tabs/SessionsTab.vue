@@ -61,7 +61,7 @@ const columns: Column<TeleportSession>[] = [
   <div class="flex flex-col gap-4" data-test="sessions-tab">
     <UiAlert v-if="error" kind="error" data-test="sessions-error">{{ error }}</UiAlert>
     <div class="flex flex-wrap items-end gap-2">
-      <UiSelect v-model="range" label="Ended within" :options="RANGES" class="w-44" data-test="sessions-range" @update:model-value="load()" />
+      <UiSelect id="sessions-range" v-model="range" label="Ended within" :options="RANGES" class="w-44" data-test="sessions-range" @update:model-value="load()" />
     </div>
     <UiCard :padded="false">
       <UiDataTable :items="items" :columns="columns" row-key="sid" :loading="loading" caption="Recorded sessions, newest first" empty-title="No recorded sessions in this range" data-test="sessions-table">
@@ -78,7 +78,7 @@ const columns: Column<TeleportSession>[] = [
       </UiDataTable>
     </UiCard>
     <div v-if="next" class="flex justify-center">
-      <UiButton variant="outlined" :disabled="loading" data-test="sessions-more" @click="load(true)">Load more</UiButton>
+      <UiButton variant="outline" :disabled="loading" data-test="sessions-more" @click="load(true)">Load more</UiButton>
     </div>
   </div>
 </template>

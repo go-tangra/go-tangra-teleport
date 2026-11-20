@@ -11,7 +11,7 @@ import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiIn
 import { useZodForm } from '@go-tangra/ui/forms'
 import { explain } from '@/api/client'
 import { managedApi, mappingsApi } from '@/stores/provisioning'
-import { mappingEditSchema, mappingSchema, provisionSchema, type MappingEditForm, type MappingForm, type ProvisionForm } from '@/schemas'
+import { mappingEditSchema, mappingSchema, provisionSchema } from '@/schemas'
 import type { Cluster, ManagedState, ManagedUser, ProvisioningSummary, RoleMapping } from '@/api/types'
 import { formatTime } from '../status'
 
@@ -49,7 +49,7 @@ const mappingColumns: Column<RoleMapping>[] = [
   { key: 'actions', label: '', width: 'sm' },
 ]
 
-const STATE: Record<ManagedState, { label: string; color: string }> = {
+const STATE: Record<ManagedState, { label: string; color: 'success' | 'error' | 'warning' | 'info' | 'neutral' }> = {
   provisioning: { label: 'Provisioning', color: 'info' },
   active: { label: 'Active', color: 'success' },
   locked_pending_deletion: { label: 'Locked, pending deletion', color: 'warning' },
@@ -67,7 +67,7 @@ const managedColumns: Column<ManagedUser>[] = [
 // ---- mapping editor
 const creating = ref(false)
 const createForm = useZodForm(mappingSchema, {
-  onSubmit: (v) => mappingsApi.create(props.cluster.id, mappingSchema.parse(v as MappingForm)),
+  onSubmit: (v) => mappingsApi.create(props.cluster.id, v),
   onSuccess: () => {
     creating.value = false
     notice.value = 'Mapping saved. Matching users are provisioned at the next sync.'
@@ -92,7 +92,7 @@ async function saveCreate(): Promise<void> {
 
 const editing = ref<RoleMapping | null>(null)
 const editForm = useZodForm(mappingEditSchema, {
-  onSubmit: (v) => mappingsApi.update(props.cluster.id, editing.value!.id, mappingEditSchema.parse(v as MappingEditForm)),
+  onSubmit: (v) => mappingsApi.update(props.cluster.id, editing.value!.id, v),
   onSuccess: () => {
     editing.value = null
     notice.value = 'Mapping updated. Users are brought in line at the next sync.'
@@ -131,7 +131,7 @@ async function removeMapping(m: RoleMapping): Promise<void> {
 // ---- provision one member, sync now
 const provisioning = ref(false)
 const provisionForm = useZodForm(provisionSchema, {
-  onSubmit: (v) => managedApi.provision(props.cluster.id, provisionSchema.parse(v as ProvisionForm).tangra_user_id),
+  onSubmit: (v) => managedApi.provision(props.cluster.id, v.tangra_user_id),
   onSuccess: () => {
     provisioning.value = false
     notice.value = 'User provisioned. The invite was sent to them through tangra notifications.'
@@ -178,8 +178,10 @@ async function syncNow(): Promise<void> {
       <UiButton v-if="canManage" icon="mdi-plus" data-test="mapping-new" @click="openCreate">Add mapping</UiButton>
     </div>
     <UiCard :padded="false">
-      <UiDataTable :items="mappings" :columns="mappingColumns" row-key="id" :loading="loading" caption="Role mappings"
-        empty-title="No mappings" empty-text="Map a tangra role or group to Teleport roles to provision its members." data-test="mappings-table">
+      <UiDataTable
+        :items="mappings" :columns="mappingColumns" row-key="id" :loading="loading" caption="Role mappings"
+        empty-title="No mappings" empty-text="Map a tangra role or group to Teleport roles to provision its members." data-test="mappings-table"
+      >
         <template #cell-actions="{ row }">
           <div v-if="canManage" class="flex justify-end gap-1">
             <UiButton size="sm" variant="text" icon="mdi-pencil" icon-only label="Edit mapping" :data-test="'mapping-edit-' + row.id" @click="openEdit(row)" />
@@ -197,8 +199,10 @@ async function syncNow(): Promise<void> {
       </div>
     </div>
     <UiCard :padded="false">
-      <UiDataTable :items="managed" :columns="managedColumns" row-key="id" :loading="loading" caption="Managed users"
-        empty-title="No managed users" empty-text="Users tangra provisions appear here. Teleport users created by hand are never changed." data-test="managed-table">
+      <UiDataTable
+        :items="managed" :columns="managedColumns" row-key="id" :loading="loading" caption="Managed users"
+        empty-title="No managed users" empty-text="Users tangra provisions appear here. Teleport users created by hand are never changed." data-test="managed-table"
+      >
         <template #cell-state="{ row }">
           <UiBadge :color="STATE[row.state as ManagedState].color" :data-test="'managed-state-' + row.id">{{ STATE[row.state as ManagedState].label }}</UiBadge>
         </template>
@@ -239,8 +243,10 @@ async function syncNow(): Promise<void> {
       <UiForm :form="provisionForm">
         <div class="flex flex-col gap-4">
           <UiAlert v-if="provisionForm.serverError.value" kind="error">{{ provisionForm.serverError.value }}</UiAlert>
-          <UiInput v-bind="provisionForm.field('tangra_user_id')" label="Tangra user id" required
-            hint="The member must hold a mapped role or group. The invite is sent to them, not shown here." data-test="provision-user" />
+          <UiInput
+            v-bind="provisionForm.field('tangra_user_id')" label="Tangra user id" required
+            hint="The member must hold a mapped role or group. The invite is sent to them, not shown here." data-test="provision-user"
+          />
         </div>
       </UiForm>
       <template #actions>

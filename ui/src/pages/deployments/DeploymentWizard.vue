@@ -12,7 +12,7 @@ import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiForm, UiInput, UiPag
 import { useZodForm } from '@go-tangra/ui/forms'
 import { explain } from '@/api/client'
 import { deploymentsApi } from '@/stores/deployments'
-import { draftSchema, type DraftForm } from '@/schemas'
+import { draftSchema } from '@/schemas'
 import type { ArtifactName, Cluster, Draft, DraftCheck, DraftInput } from '@/api/types'
 import RegisterClusterDialog from '../clusters/RegisterClusterDialog.vue'
 import { formatTime } from '../clusters/status'
@@ -46,7 +46,7 @@ const certModes = [
 ]
 const form = useZodForm(draftSchema, {
   onSubmit: (v) => {
-    const body = draftSchema.parse(v as DraftForm) as DraftInput
+    const body: DraftInput = v
     return draft.value ? deploymentsApi.update(draft.value.id, { ...body, registered_cluster_id: draft.value.registered_cluster_id }) : deploymentsApi.create(body)
   },
   onSuccess: (d) => {
@@ -156,8 +156,12 @@ startNew()
 
       <ol class="flex flex-wrap gap-2" aria-label="Wizard steps">
         <li v-for="(label, i) in STEPS" :key="label">
-          <UiButton size="sm" :variant="step === i + 1 ? 'soft' : 'text'" :disabled="i > 0 && !draft" :aria-current="step === i + 1 ? 'step' : undefined"
-            :data-test="'wizard-step-' + (i + 1)" @click="step = i + 1">{{ i + 1 }}. {{ label }}</UiButton>
+          <UiButton
+            size="sm" :variant="step === i + 1 ? 'soft' : 'text'" :disabled="i > 0 && !draft" :aria-current="step === i + 1 ? 'step' : undefined"
+            :data-test="'wizard-step-' + (i + 1)" @click="step = i + 1"
+          >
+            {{ i + 1 }}. {{ label }}
+          </UiButton>
         </li>
       </ol>
 
@@ -209,8 +213,10 @@ startNew()
           <UiButton variant="soft" :disabled="!allPassed" data-test="wizard-next-4" @click="step = 5">Continue</UiButton>
         </div>
         <UiCard :padded="false">
-          <UiDataTable :items="draft.checks" :columns="checkColumns" row-key="name" caption="Prerequisite checks"
-            empty-title="Not checked yet" empty-text="Run the checks once DNS is set up and Teleport is running." data-test="wizard-checks">
+          <UiDataTable
+            :items="draft.checks" :columns="checkColumns" row-key="name" caption="Prerequisite checks"
+            empty-title="Not checked yet" empty-text="Run the checks once DNS is set up and Teleport is running." data-test="wizard-checks"
+          >
             <template #cell-ok="{ row }">
               <UiBadge :color="row.ok ? 'success' : 'error'" :data-test="'check-' + row.name">{{ row.ok ? 'passed' : 'failed' }}</UiBadge>
             </template>
@@ -221,12 +227,15 @@ startNew()
 
       <!-- 5. Register -->
       <UiCard v-else-if="step === 5 && draft" title="Register this cluster" data-test="wizard-register">
-        <p v-if="draft.registered_cluster_id">This cluster is registered.
+        <p v-if="draft.registered_cluster_id">
+          This cluster is registered.
           <UiButton variant="text" @click="router.push({ name: 'teleport-cluster', params: { id: draft.registered_cluster_id } })">Open it</UiButton>
         </p>
         <template v-else>
-          <p>Follow <code>setup-commands.txt</code> to create the first administrator and the <code>tangra-mgmt</code> identity, then register
-            the cluster with <code>{{ draft.proxy_addr }}</code> and the <code>tangra-mgmt.identity</code> file.</p>
+          <p>
+            Follow <code>setup-commands.txt</code> to create the first administrator and the <code>tangra-mgmt</code> identity, then register
+            the cluster with <code>{{ draft.proxy_addr }}</code> and the <code>tangra-mgmt.identity</code> file.
+          </p>
           <div class="flex justify-end mt-4">
             <UiButton icon="mdi-server-plus" data-test="wizard-register-open" @click="registering = true">Register this cluster</UiButton>
           </div>

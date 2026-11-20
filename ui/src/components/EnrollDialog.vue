@@ -63,8 +63,8 @@ async function copy(what: 'command' | 'config'): Promise<void> {
     <div class="flex flex-col gap-4">
       <UiAlert v-if="error" kind="error" data-test="enroll-error">{{ error }}</UiAlert>
       <template v-if="!issued">
-        <UiSelect v-model="kind" label="Resource type" :options="kinds" :clearable="false" required data-test="enroll-kind" />
-        <UiNumberInput v-model="ttl" label="Valid for (minutes)" :min="1" :max="1440" hint="Default 30 minutes, at most 24 hours." data-test="enroll-ttl" />
+        <UiSelect id="enroll-kind" v-model="kind" label="Resource type" :options="kinds" :clearable="false" required data-test="enroll-kind" />
+        <UiNumberInput id="enroll-ttl" v-model="ttl" label="Valid for (minutes)" :min="1" :max="1440" hint="Default 30 minutes, at most 24 hours." data-test="enroll-ttl" />
       </template>
       <template v-else>
         <UiAlert kind="warning" data-test="enroll-once">

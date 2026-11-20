@@ -10,7 +10,7 @@ import type {
 const c = (id: string) => 'clusters/' + id
 
 export const usersApi = {
-  list: (id: string, query: { q?: string; next?: string } = {}) => api<CursorPage<TeleportUser>>('GET', c(id) + '/users', undefined, { query }),
+  list: (id: string, query: { q?: string | undefined; next?: string | undefined } = {}) => api<CursorPage<TeleportUser>>('GET', c(id) + '/users', undefined, { query }),
   create: (id: string, body: CreateUser) => api<UserCreated>('POST', c(id) + '/users', body),
   update: (id: string, name: string, body: UpdateUser) => api<TeleportUser>('PUT', c(id) + '/users/' + encodeURIComponent(name), body),
   reset: (id: string, name: string) => api<ResetLink>('POST', c(id) + '/users/' + encodeURIComponent(name) + '/reset'),
@@ -18,7 +18,7 @@ export const usersApi = {
 }
 
 export const rolesApi = {
-  list: (id: string, query: { next?: string } = {}) => api<CursorPage<TeleportRole>>('GET', c(id) + '/roles', undefined, { query }),
+  list: (id: string, query: { next?: string | undefined } = {}) => api<CursorPage<TeleportRole>>('GET', c(id) + '/roles', undefined, { query }),
   get: (id: string, name: string) => api<RoleDefinition>('GET', c(id) + '/roles/' + encodeURIComponent(name)),
   /** Validation and diff only; nothing changes. */
   preview: (id: string, yaml: string, revision?: string) => api<RolePreview>('POST', c(id) + '/roles:preview', { yaml, revision }),

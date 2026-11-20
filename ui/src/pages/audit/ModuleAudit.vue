@@ -73,18 +73,22 @@ const columns: Column<AuditRecord>[] = [
     <div class="flex flex-col gap-4">
       <UiAlert v-if="error" kind="error" data-test="audit-error">{{ error }}</UiAlert>
       <div class="flex flex-wrap items-end gap-2">
-        <UiSelect v-model="filter.cluster_id" label="Cluster" :options="[{ title: 'All clusters', value: '' }, ...clusters.items.map((c) => ({ title: c.display_name, value: c.id }))]"
-          class="w-48" data-test="audit-cluster" />
+        <UiSelect
+          id="moduleaudit-cluster" v-model="filter.cluster_id" label="Cluster" :options="[{ title: 'All clusters', value: '' }, ...clusters.items.map((c) => ({ title: c.display_name, value: c.id }))]"
+          class="w-48" data-test="audit-cluster"
+        />
         <UiInput id="audit-action" v-model="filter.action" label="Action (e.g. teleport.lock.create)" class="w-64" data-test="audit-action" @keyup.enter="load(true)" />
-        <UiSelect v-model="filter.outcome" label="Outcome" :options="OUTCOMES" class="w-40" data-test="audit-outcome" />
+        <UiSelect id="audit-outcome" v-model="filter.outcome" label="Outcome" :options="OUTCOMES" class="w-40" data-test="audit-outcome" />
         <UiInput id="audit-from" v-model="filter.from" type="datetime-local" label="From" data-test="audit-from" />
         <UiInput id="audit-to" v-model="filter.to" type="datetime-local" label="To" data-test="audit-to" />
         <UiButton color="primary" icon="mdi-magnify" :disabled="loading" data-test="audit-search" @click="load(true)">Search</UiButton>
       </div>
       <UiCard :padded="false">
-        <UiDataTable :items="page?.items ?? []" :columns="columns" row-key="id" :total="page?.total" :page="current" :page-size="size" :loading="loading"
+        <UiDataTable
+          :items="page?.items ?? []" :columns="columns" row-key="id" :total="page?.total" :page="current" :page-size="size" :loading="loading"
           caption="Module audit trail, newest first" empty-title="No audit records" data-test="audit-table"
-          @update:page="current = $event; load()" @update:page-size="size = $event; load(true)">
+          @update:page="current = $event; load()" @update:page-size="size = $event; load(true)"
+        >
           <template #cell-outcome="{ row }">
             <UiBadge :color="OUTCOME_COLORS[row.outcome]">{{ row.outcome }}</UiBadge>
             <span v-if="row.reason" class="ms-1 text-xs">{{ row.reason }}</span>

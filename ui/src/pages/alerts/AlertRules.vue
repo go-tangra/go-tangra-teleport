@@ -163,7 +163,7 @@ const columns: Column<AlertRule>[] = [
       <UiCard :padded="false">
         <UiDataTable :items="items" :columns="columns" row-key="id" :loading="loading" caption="Alert rules" empty-title="No alert rules" data-test="rules-table">
           <template #cell-enabled="{ row }">
-            <UiBadge :color="row.enabled ? 'success' : 'default'">{{ row.enabled ? 'enabled' : 'disabled' }}</UiBadge>
+            <UiBadge :color="row.enabled ? 'success' : 'neutral'">{{ row.enabled ? 'enabled' : 'disabled' }}</UiBadge>
           </template>
           <template #cell-actions="{ row }">
             <div class="flex justify-end gap-1">
@@ -179,24 +179,26 @@ const columns: Column<AlertRule>[] = [
       <form v-if="editing" class="flex flex-col gap-3" data-test="rule-form" @submit.prevent="save">
         <UiAlert v-if="formError" kind="error" data-test="rule-form-error">{{ formError }}</UiAlert>
         <UiInput id="rule-name" v-model="editing.name" label="Name" :maxlength="64" required data-test="rule-name" />
-        <UiSelect v-model="editing.cluster_id" label="Cluster" :options="clusterOptions" :disabled="!!editing.id" hint="The scope cannot change after creation." data-test="rule-cluster" />
-        <UiSelect v-model="editing.condition_kind" label="Alert when" :options="CONDITIONS" data-test="rule-condition" />
+        <UiSelect id="rule-cluster" v-model="editing.cluster_id" label="Cluster" :options="clusterOptions" :disabled="!!editing.id" hint="The scope cannot change after creation." data-test="rule-cluster" />
+        <UiSelect id="rule-condition" v-model="editing.condition_kind" label="Alert when" :options="CONDITIONS" data-test="rule-condition" />
         <template v-if="editing.condition_kind === 'teleport_event'">
           <fieldset class="flex flex-col gap-1" data-test="rule-event-types">
             <legend class="mb-1 text-sm font-medium">Event types</legend>
             <div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
-              <UiCheckbox v-for="t in EVENT_TYPES" :id="'rule-type-' + t" :key="t" :model-value="editing.event_types.includes(t)" :label="t"
-                @update:model-value="toggleType(t, !!$event)" />
+              <UiCheckbox
+                v-for="t in EVENT_TYPES" :id="'rule-type-' + t" :key="t" :model-value="editing.event_types.includes(t)" :label="t"
+                @update:model-value="toggleType(t, !!$event)"
+              />
             </div>
           </fieldset>
-          <UiSwitch v-model="editing.burst" label="Only on a burst by one user" data-test="rule-burst" />
+          <UiSwitch id="rule-burst" v-model="editing.burst" label="Only on a burst by one user" data-test="rule-burst" />
           <div v-if="editing.burst" class="flex gap-2">
             <UiNumberInput id="rule-count" v-model="editing.threshold_count" label="At least (events)" :min="1" :max="1000" data-test="rule-count" />
             <UiNumberInput id="rule-window" v-model="editing.window_minutes" label="Within (minutes)" :min="1" :max="1440" data-test="rule-window" />
           </div>
         </template>
         <UiTextarea id="rule-recipients" v-model="editing.recipients" label="Recipients (tangra user ids, one per line)" :rows="3" required data-test="rule-recipients" />
-        <UiSwitch v-model="editing.enabled" label="Enabled" data-test="rule-enabled" />
+        <UiSwitch id="rule-enabled" v-model="editing.enabled" label="Enabled" data-test="rule-enabled" />
         <div class="flex justify-end gap-2">
           <UiButton variant="text" @click="editing = null">Cancel</UiButton>
           <UiButton type="submit" color="primary" :disabled="saving" data-test="rule-save">Save</UiButton>

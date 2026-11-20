@@ -30,11 +30,11 @@ export interface Cluster {
   server_version: string
   credential_kind: 'identity_file'
   credential_identity: string
-  credential_expires_at?: string
+  credential_expires_at?: string | undefined
   status: ClusterStatus
   status_reason: string
   missing_permissions: string[]
-  last_contact_at?: string
+  last_contact_at?: string | undefined
   counts: Counts
   settings: ClusterSettings
   writes_blocked: boolean
@@ -55,18 +55,18 @@ export interface Page<T> {
 export interface RegisterCluster {
   display_name: string
   proxy_addr: string
-  credential_kind?: 'identity_file'
+  credential_kind?: 'identity_file' | undefined
   credential: string
 }
 
 export interface RotateCredential {
-  credential_kind?: 'identity_file'
+  credential_kind?: 'identity_file' | undefined
   credential: string
 }
 
 export interface UpdateCluster {
-  display_name?: string
-  settings?: Partial<ClusterSettings>
+  display_name?: string | undefined
+  settings?: Partial<ClusterSettings> | undefined
 }
 
 // ---- Users, roles and locks (US2)
@@ -76,9 +76,9 @@ export interface TeleportUser {
   name: string
   roles: string[]
   logins: string[]
-  created?: string
+  created?: string | undefined
   managed: boolean
-  tangra_user_id?: string
+  tangra_user_id?: string | undefined
   locked: boolean
   revision: string
 }
@@ -86,18 +86,18 @@ export interface TeleportUser {
 /** Teleport-backed lists page with an opaque cursor. */
 export interface CursorPage<T> {
   items: T[]
-  next?: string
+  next?: string | undefined
 }
 
 export interface CreateUser {
   name: string
   roles: string[]
-  logins?: string[]
+  logins?: string[] | undefined
 }
 
 export interface UpdateUser {
   roles: string[]
-  logins?: string[]
+  logins?: string[] | undefined
   revision: string
 }
 
@@ -134,20 +134,20 @@ export interface RolePreview {
 
 export type LockTargetKind = 'user' | 'role' | 'server_id'
 
-export interface TeleportLock {
+export type TeleportLock = {
   name: string
   target_kind: LockTargetKind
   target: { user?: string; role?: string; server_id?: string }
   message: string
   created_by: string
-  expires_at?: string
+  expires_at?: string | undefined
 }
 
 export interface CreateLock {
   target_kind: LockTargetKind
   target: string
   reason: string
-  expires_at?: string
+  expires_at?: string | undefined
 }
 
 // ---- US3: join tokens and resources
@@ -156,7 +156,7 @@ export type ResourceKind = 'node' | 'app' | 'db' | 'kube' | 'desktop'
 
 export interface CreateToken {
   resource_type: ResourceKind
-  ttl_minutes?: number
+  ttl_minutes?: number | undefined
 }
 
 /** The token, command and snippet are one-time: shown once, never stored. */
@@ -177,7 +177,7 @@ export interface JoinToken {
   expires_at: string
   expired: boolean
   revoked: boolean
-  revoked_at?: string
+  revoked_at?: string | undefined
 }
 
 export type LinkMatch = 'auto' | 'candidate' | 'confirmed'
@@ -197,20 +197,20 @@ export interface TeleportResource {
   id: string
   kind: ResourceKind
   name: string
-  hostname?: string
-  addr?: string
+  hostname?: string | undefined
+  addr?: string | undefined
   labels: Record<string, string>
   agent_version: string
   status: ResourceStatus
-  last_seen_at?: string
-  offline_since?: string
-  flagged_at?: string
+  last_seen_at?: string | undefined
+  offline_since?: string | undefined
+  flagged_at?: string | undefined
   links: ResourceLink[]
 }
 
 export interface ResourcePage {
   items: TeleportResource[]
-  next?: string
+  next?: string | undefined
   link_status: 'ok' | 'dependency_unavailable'
 }
 
@@ -256,7 +256,7 @@ export interface TeleportSession {
   kind: SessionKind
   started_at: string
   duration_s: number
-  playback_url?: string
+  playback_url?: string | undefined
 }
 
 export interface AuditRecord {
@@ -264,13 +264,13 @@ export interface AuditRecord {
   time: string
   actor_kind: 'user' | 'module' | 'worker' | 'system'
   actor_id: string
-  cluster_id?: string
+  cluster_id?: string | undefined
   action: string
   target_kind: string
   target_name: string
   outcome: 'success' | 'failure' | 'unknown'
-  reason?: string
-  correlation_id?: string
+  reason?: string | undefined
+  correlation_id?: string | undefined
   detail: Record<string, unknown>
 }
 
@@ -278,23 +278,23 @@ export type ConditionKind = 'teleport_event' | 'cluster_unreachable' | 'credenti
 
 export interface Recipients {
   user_ids: string[]
-  channel_ids?: string[]
+  channel_ids?: string[] | undefined
 }
 
 export interface AlertRuleInput {
-  cluster_id?: string
+  cluster_id?: string | undefined
   name: string
   condition_kind: ConditionKind
-  event_types?: EventType[]
-  threshold_count?: number
-  window_minutes?: number
+  event_types?: EventType[] | undefined
+  threshold_count?: number | undefined
+  window_minutes?: number | undefined
   recipients: Recipients
-  enabled?: boolean
+  enabled?: boolean | undefined
 }
 
 export interface AlertRule {
   id: string
-  cluster_id?: string
+  cluster_id?: string | undefined
   name: string
   condition_kind: ConditionKind
   event_types: string[]
@@ -316,12 +316,12 @@ export interface RoleMappingInput {
   subject_kind: SubjectKind
   subject_ref: string
   teleport_roles: string[]
-  logins?: string[]
+  logins?: string[] | undefined
 }
 
 export interface RoleMappingUpdate {
   teleport_roles: string[]
-  logins?: string[]
+  logins?: string[] | undefined
 }
 
 export interface RoleMapping {
@@ -345,8 +345,8 @@ export interface ManagedUser {
   applied_roles: string[]
   applied_logins: string[]
   locked: boolean
-  deprovision_after?: string
-  last_synced_at?: string
+  deprovision_after?: string | undefined
+  last_synced_at?: string | undefined
   created_at: string
 }
 
@@ -367,11 +367,11 @@ export type ArtifactName = 'teleport.yaml' | 'install.sh' | 'tangra-manager-role
 export interface DraftInput {
   domain: string
   cert_mode: CertMode
-  acme_email?: string
+  acme_email?: string | undefined
   teleport_version: string
   admin_username: string
   admin_logins: string[]
-  registered_cluster_id?: string
+  registered_cluster_id?: string | undefined
 }
 
 export interface DraftCheck {
@@ -384,7 +384,7 @@ export interface DraftCheck {
 export interface Draft extends Omit<DraftInput, 'registered_cluster_id'> {
   id: string
   checks: DraftCheck[]
-  registered_cluster_id?: string
+  registered_cluster_id?: string | undefined
   /** The address the registration dialog is filled with. */
   proxy_addr: string
   artifacts: ArtifactName[]

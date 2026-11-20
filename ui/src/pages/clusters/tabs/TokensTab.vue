@@ -66,7 +66,7 @@ async function revoke(t: JoinToken): Promise<void> {
     <UiCard :padded="false">
       <UiDataTable :items="items" :columns="columns" row-key="id" :loading="loading" caption="Join tokens" empty-title="No join tokens" data-test="tokens-table">
         <template #cell-state="{ row }">
-          <UiBadge :color="state(row) === 'active' ? 'success' : 'default'">{{ state(row) }}</UiBadge>
+          <UiBadge :color="state(row) === 'active' ? 'success' : 'neutral'">{{ state(row) }}</UiBadge>
         </template>
         <template #cell-actions="{ row }">
           <div class="flex justify-end">

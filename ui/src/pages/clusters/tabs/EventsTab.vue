@@ -89,12 +89,12 @@ const columns: Column<AuditEvent>[] = [
   <div class="flex flex-col gap-4" data-test="events-tab">
     <UiAlert v-if="error" kind="error" data-test="events-error">{{ error }}</UiAlert>
     <div class="flex flex-wrap items-end gap-2">
-      <UiSelect v-model="range" label="Time range" :options="RANGES" class="w-44" data-test="events-range" />
+      <UiSelect id="events-range" v-model="range" label="Time range" :options="RANGES" class="w-44" data-test="events-range" />
       <template v-if="range === 'custom'">
         <UiInput id="events-from" v-model="customFrom" type="datetime-local" label="From" data-test="events-from" />
         <UiInput id="events-to" v-model="customTo" type="datetime-local" label="To" data-test="events-to" />
       </template>
-      <UiSelect v-model="type" label="Event type" :options="types" class="w-60" data-test="events-type" />
+      <UiSelect id="events-type" v-model="type" label="Event type" :options="types" class="w-60" data-test="events-type" />
       <UiInput id="events-user" v-model="user" label="User" class="w-40" data-test="events-user" @keyup.enter="load()" />
       <UiInput id="events-resource" v-model="resource" label="Resource" class="w-40" data-test="events-resource" @keyup.enter="load()" />
       <UiButton color="primary" icon="mdi-magnify" :disabled="loading" data-test="events-search" @click="load()">Search</UiButton>
@@ -115,7 +115,7 @@ const columns: Column<AuditEvent>[] = [
       </UiDataTable>
     </UiCard>
     <div v-if="next" class="flex justify-center">
-      <UiButton variant="outlined" :disabled="loading" data-test="events-more" @click="load(true)">Load more</UiButton>
+      <UiButton variant="outline" :disabled="loading" data-test="events-more" @click="load(true)">Load more</UiButton>
     </div>
     <UiDialog :model-value="!!shown" title="Raw event" @update:model-value="shown = null">
       <p class="mb-2 text-sm">{{ shown?.summary }} · {{ shown?.code }}</p>

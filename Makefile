@@ -23,7 +23,7 @@ test:
 # Testcontainers suites (TimescaleDB, Valkey, Teleport CE); they skip cleanly
 # when Docker is unavailable.
 test-integration:
-	$(GO) test -race -count=1 -tags integration ./internal/repodb/ ./tests/integration/...
+	$(GO) test -race -count=1 -timeout 30m -tags integration ./internal/repodb/ ./tests/integration/...
 
 # Live-cluster spikes (research D1/D2); need TELEPORT_SPIKE_PROXY and
 # TELEPORT_SPIKE_IDENTITY (a path to an identity file).

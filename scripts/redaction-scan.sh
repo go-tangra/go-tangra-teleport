@@ -11,7 +11,7 @@ find "$FREYA_CAPTURE_DIR" -type f -name '*.log' -delete
 go test -count=1 ./tests/security/... -v > "$ART/security.log" 2>&1 || { tail -50 "$ART/security.log"; exit 1; }
 cp "$ART/security.log" "$FREYA_CAPTURE_DIR/security-suite.log"
 if compgen -G "tests/integration/*_test.go" > /dev/null; then
-  go test -count=1 -tags integration ./tests/integration/... -v > "$ART/integration.log" 2>&1 || { tail -50 "$ART/integration.log"; exit 1; }
+  go test -count=1 -timeout 30m -tags integration ./tests/integration/... -v > "$ART/integration.log" 2>&1 || { tail -50 "$ART/integration.log"; exit 1; }
   cp "$ART/integration.log" "$FREYA_CAPTURE_DIR/integration-suite.log"
 fi
 # The suite log itself names the sentinel prefix only in source identifiers,

@@ -65,10 +65,12 @@ function onRegistered(c: Cluster): void {
     </template>
     <UiAlert v-if="store.error" kind="error">{{ store.error }}</UiAlert>
     <UiCard :padded="false">
-      <UiDataTable :items="store.items" :columns="columns" :loading="store.loading" :total="store.total" :page="lq.page.value" :page-size="lq.pageSize.value" :sort="lq.sort.value"
+      <UiDataTable
+        :items="store.items" :columns="columns" :loading="store.loading" :total="store.total" :page="lq.page.value" :page-size="lq.pageSize.value" :sort="lq.sort.value"
         caption="Teleport clusters — select one to see its health" empty-title="No clusters" empty-text="Register a Teleport cluster to manage it from the platform."
         clickable :row-attrs="(c) => ({ 'data-test': 'cluster-row-' + c.id })" data-test="clusters-table"
-        @row-click="open($event.id)" @update:page="lq.setPage" @update:page-size="lq.setPageSize" @update:sort="lq.setSort">
+        @row-click="open($event.id)" @update:page="lq.setPage" @update:page-size="lq.setPageSize" @update:sort="lq.setSort"
+      >
         <template #cell-display_name="{ row }">
           <div class="flex flex-col">
             <span class="font-medium">{{ row.display_name }}</span>

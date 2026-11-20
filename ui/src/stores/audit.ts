@@ -10,33 +10,33 @@ const c = (id: string) => 'clusters/' + id
 /** The maximum search window (contracts/http-api.md). */
 export const MAX_WINDOW_MS = 31 * 86_400_000
 
-export interface EventQuery {
+export type EventQuery = {
   from: string
   to: string
   /** One event type (the API also takes the parameter repeated). */
-  types?: string
-  user?: string
-  resource?: string
-  limit?: number
-  next?: string
+  types?: string | undefined
+  user?: string | undefined
+  resource?: string | undefined
+  limit?: number | undefined
+  next?: string | undefined
 }
 
-export interface SessionQuery {
+export type SessionQuery = {
   from: string
   to: string
-  limit?: number
-  next?: string
+  limit?: number | undefined
+  next?: string | undefined
 }
 
-export interface TrailQuery {
-  page?: number
-  page_size?: number
-  order?: 'asc' | 'desc'
-  cluster_id?: string
-  action?: string
-  outcome?: string
-  from?: string
-  to?: string
+export type TrailQuery = {
+  page?: number | undefined
+  page_size?: number | undefined
+  order?: 'asc' | 'desc' | undefined
+  cluster_id?: string | undefined
+  action?: string | undefined
+  outcome?: string | undefined
+  from?: string | undefined
+  to?: string | undefined
 }
 
 export const auditApi = {

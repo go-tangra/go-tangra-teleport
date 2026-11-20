@@ -13,13 +13,13 @@ export const tokensApi = {
   revoke: (id: string, tid: string) => api('DELETE', c(id) + '/tokens/' + encodeURIComponent(tid)),
 }
 
-export interface ResourceQuery {
-  kind?: string
-  label?: string
-  q?: string
-  status?: string
-  next?: string
-  page_size?: number
+export type ResourceQuery = {
+  kind?: string | undefined
+  label?: string | undefined
+  q?: string | undefined
+  status?: string | undefined
+  next?: string | undefined
+  page_size?: number | undefined
 }
 
 export const resourcesApi = {

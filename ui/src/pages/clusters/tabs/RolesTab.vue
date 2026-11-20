@@ -156,16 +156,20 @@ async function remove(r: TeleportRole): Promise<void> {
       <UiButton v-if="can('create') && !cluster.writes_blocked" icon="mdi-plus" data-test="role-new" @click="create">New role</UiButton>
     </div>
     <UiCard :padded="false">
-      <UiDataTable :items="items" :columns="columns" row-key="name" :loading="loading" :has-more="!!next" caption="Teleport roles — select one to view its definition"
-        clickable empty-title="No roles" data-test="roles-table" @row-click="edit($event)" @load-more="load(true)">
+      <UiDataTable
+        :items="items" :columns="columns" row-key="name" :loading="loading" :has-more="!!next" caption="Teleport roles — select one to view its definition"
+        clickable empty-title="No roles" data-test="roles-table" @row-click="edit($event)" @load-more="load(true)"
+      >
         <template #cell-name="{ row }">
           <span class="font-mono">{{ row.name }}</span>
           <UiBadge v-if="row.preset" color="neutral" class="ml-2" :data-test="'role-preset-' + row.name">built-in</UiBadge>
         </template>
         <template #cell-actions="{ row }">
           <div class="flex justify-end">
-            <UiButton v-if="can('delete') && !row.preset && !cluster.writes_blocked" size="sm" variant="text" color="error" icon="mdi-delete-outline" icon-only label="Delete"
-              :data-test="'role-delete-' + row.name" @click.stop="remove(row)" />
+            <UiButton
+              v-if="can('delete') && !row.preset && !cluster.writes_blocked" size="sm" variant="text" color="error" icon="mdi-delete-outline" icon-only label="Delete"
+              :data-test="'role-delete-' + row.name" @click.stop="remove(row)"
+            />
           </div>
         </template>
       </UiDataTable>

@@ -44,7 +44,10 @@ func (d *DB) system(ctx context.Context, fn func(tx pgx.Tx) error) error {
 type scanner interface{ Scan(dest ...any) error }
 
 // mapErr maps store errors: no row / malformed id → ErrNotFound, unique
-// violation → ErrConflict, foreign-key violation → ErrNotFound.
+// violation → ErrConflict, foreign-key violation → ErrNotFound. A
+// row-level-security violation (an upsert whose conflicting row belongs to
+// another tenant) is ErrNotFound too: another tenant's rows do not exist for
+// the caller.
 func mapErr(err error) error {
 	if err == nil {
 		return nil
@@ -57,7 +60,7 @@ func mapErr(err error) error {
 		switch pg.Code {
 		case "23505":
 			return repo.ErrConflict
-		case "23503", "22P02": // foreign_key_violation, invalid_text_representation
+		case "23503", "22P02", "42501": // foreign_key_violation, invalid_text_representation, RLS (insufficient_privilege)
 			return repo.ErrNotFound
 		}
 	}

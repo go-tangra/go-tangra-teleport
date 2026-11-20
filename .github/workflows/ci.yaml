@@ -120,10 +120,8 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@go-tangra'
 
-      # ui/package-lock.json is not committed yet (it needs the @go-tangra
-      # registry token to generate); npm ci is used once it is.
       - name: Install
-        run: if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+        run: npm ci --no-audit --no-fund
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

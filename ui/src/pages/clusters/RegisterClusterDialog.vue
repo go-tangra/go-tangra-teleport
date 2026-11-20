@@ -13,7 +13,7 @@ import { registerSchema, rotateSchema, MAX_IDENTITY_BYTES, type RegisterForm, ty
 import type { Cluster } from '@/api/types'
 
 // proxyAddr and displayName prefill a registration (the deployment wizard's handover).
-const props = defineProps<{ modelValue: boolean; cluster?: Cluster | null | undefined; proxyAddr?: string; displayName?: string }>()
+const props = defineProps<{ modelValue: boolean; cluster?: Cluster | null | undefined; proxyAddr?: string | undefined; displayName?: string | undefined }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: boolean): void; (e: 'saved', c: Cluster): void }>()
 
 const store = useClusters()
@@ -80,10 +80,12 @@ async function save(): Promise<void> {
           <UiInput v-bind="form.field('display_name')" label="Name" required placeholder="Production" data-test="cluster-name" />
           <UiInput v-bind="form.field('proxy_addr')" label="Proxy address" required placeholder="teleport.example.com:443" hint="The cluster's public proxy, host or host:port (port 443 by default)." data-test="cluster-proxy" />
         </template>
-        <UiFilePicker id="cluster-identity" :model-value="file" label="Identity file" required :max-bytes="MAX_IDENTITY_BYTES"
+        <UiFilePicker
+          id="cluster-identity" :model-value="file" label="Identity file" required :max-bytes="MAX_IDENTITY_BYTES"
           hint="At most 64 KiB. It is stored in the platform's secret store and never shown again."
           :error="fileError || form.errors.value.credential" data-test="cluster-identity"
-          @update:model-value="onFile" @too-large="fileError = 'The identity file is larger than 64 KiB.'" />
+          @update:model-value="onFile" @too-large="fileError = 'The identity file is larger than 64 KiB.'"
+        />
       </div>
     </UiForm>
     <template #actions>

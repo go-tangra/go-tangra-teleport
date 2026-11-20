@@ -11,7 +11,7 @@ import { UiAlert, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiInput, UiSe
 import { useZodForm } from '@go-tangra/ui/forms'
 import { explain } from '@/api/client'
 import { locksApi } from '@/stores/identity'
-import { lockSchema, type LockForm } from '@/schemas'
+import { lockSchema } from '@/schemas'
 import type { Cluster, LockTargetKind, TeleportLock } from '@/api/types'
 import { formatTime } from '../status'
 
@@ -52,8 +52,7 @@ const columns: Column<TeleportLock>[] = [
 const creating = ref(false)
 const form = useZodForm(lockSchema, {
   onSubmit: (v) => {
-    const l = lockSchema.parse(v as LockForm)
-    return locksApi.create(props.cluster.id, { ...l, expires_at: l.expires_at ? new Date(l.expires_at).toISOString() : undefined })
+    return locksApi.create(props.cluster.id, { ...v, expires_at: v.expires_at ? new Date(v.expires_at).toISOString() : undefined })
   },
   onSuccess: () => {
     creating.value = false

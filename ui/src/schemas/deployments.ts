@@ -7,7 +7,7 @@ import { LOGIN } from './provisioning'
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 const isDomain = (d: string) => {
   const labels = d.split('.')
-  return d.length <= 253 && labels.length >= 2 && !/^[0-9]+$/.test(labels[labels.length - 1]) && labels.every((l) => LABEL.test(l))
+  return d.length <= 253 && labels.length >= 2 && !/^[0-9]+$/.test(labels[labels.length - 1] ?? '') && labels.every((l) => LABEL.test(l))
 }
 const EMAIL = /^[A-Za-z0-9]([A-Za-z0-9._-]{0,62}[A-Za-z0-9])?@[A-Za-z0-9.-]+$/
 

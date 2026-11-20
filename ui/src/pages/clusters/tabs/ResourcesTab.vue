@@ -7,7 +7,7 @@
 import { computed, inject, onMounted, ref } from 'vue'
 import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
-import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiInput, UiSelect, UiStatusChip, useConfirm, type Column } from '@go-tangra/ui'
+import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiInput, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { explain } from '@/api/client'
 import { resourcesApi, type ResourceQuery } from '@/stores/resources'
 import type { Cluster, ResourceLink, ResourcePage, TeleportResource } from '@/api/types'
@@ -109,17 +109,17 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
       Automatic matching with inventory and assets is unavailable. Existing links stay and you can still link resources by hand.
     </UiAlert>
     <div class="flex flex-wrap items-end gap-2">
-      <UiSelect v-model="filter.kind" label="Type" :options="kinds" class="w-44" data-test="resources-kind" @update:model-value="load()" />
-      <UiSelect v-model="filter.status" label="Status" :options="statuses" class="w-40" data-test="resources-status" @update:model-value="load()" />
-      <UiInput v-model="filter.label" label="Label (key=value)" class="w-48" data-test="resources-label" @keyup.enter="load()" />
-      <UiInput v-model="filter.q" label="Search" class="w-48" data-test="resources-q" @keyup.enter="load()" />
+      <UiSelect id="resources-kind" v-model="filter.kind" label="Type" :options="kinds" class="w-44" data-test="resources-kind" @update:model-value="load()" />
+      <UiSelect id="resources-status" v-model="filter.status" label="Status" :options="statuses" class="w-40" data-test="resources-status" @update:model-value="load()" />
+      <UiInput id="resources-label" v-model="filter.label" label="Label (key=value)" class="w-48" data-test="resources-label" @keyup.enter="load()" />
+      <UiInput id="resources-q" v-model="filter.q" label="Search" class="w-48" data-test="resources-q" @keyup.enter="load()" />
       <div class="grow" />
       <UiButton v-if="canEnroll" color="primary" icon="mdi-plus" data-test="resources-enroll" @click="enrolling = true">Enroll</UiButton>
     </div>
     <UiCard :padded="false">
       <UiDataTable :items="items" :columns="columns" row-key="id" :loading="loading" caption="Resources" empty-title="No enrolled resources" data-test="resources-table">
         <template #cell-status="{ row }">
-          <UiStatusChip :color="STATUS_COLORS[row.status]" :label="row.status" />
+          <UiBadge :color="STATUS_COLORS[row.status]">{{ row.status }}</UiBadge>
         </template>
         <template #cell-links="{ row }">
           <div class="flex flex-wrap items-center gap-1">
@@ -141,8 +141,8 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
 
     <UiDialog :model-value="linking !== null" title="Link resource" data-test="resource-link-dialog" @update:model-value="(v: boolean) => { if (!v) linking = null }">
       <div class="flex flex-col gap-4">
-        <UiSelect v-model="linkModule" label="Module" :options="[{ title: 'Inventory', value: 'inventory' }, { title: 'Asset', value: 'asset' }]" :clearable="false" />
-        <UiInput v-model="linkTarget" label="Record ID" required data-test="resource-link-target" />
+        <UiSelect id="resourcestab-module" v-model="linkModule" label="Module" :options="[{ title: 'Inventory', value: 'inventory' }, { title: 'Asset', value: 'asset' }]" :clearable="false" />
+        <UiInput id="resource-link-target" v-model="linkTarget" label="Record ID" required data-test="resource-link-target" />
       </div>
       <template #actions>
         <UiButton variant="text" @click="linking = null">Cancel</UiButton>
