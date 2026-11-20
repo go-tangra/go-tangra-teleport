@@ -96,7 +96,7 @@ func TestDegradedModeWithFakes(t *testing.T) {
 		t.Fatalf("mapping: %d %s", w.Code, w.Body)
 	}
 	// The affected features report dependency_unavailable.
-	if w := do("POST", "/clusters/"+v.ID+"/provisioning:sync", nil); w.Code != 503 || reason(w) != "dependency_unavailable/auth" {
+	if w := do("POST", "/clusters/"+v.ID+"/provisioning/sync", nil); w.Code != 503 || reason(w) != "dependency_unavailable/auth" {
 		t.Fatalf("sync: %d %s", w.Code, w.Body)
 	}
 	if w := do("GET", "/clusters/"+v.ID+"/resources", nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"link_status":"`+resources.LinkStatusUnavailable+`"`) {

@@ -188,3 +188,19 @@ func TestRoutesValidationBranches(t *testing.T) {
 		}
 	}
 }
+
+// The gateway's manifest schema (go-tangra-portal internal/manifest) refuses
+// the whole registration when any route path falls outside this pattern.
+var gatewayPathRE = regexp.MustCompile(`^/[A-Za-z0-9._~-]+(/([A-Za-z0-9._~-]+|\{[a-z][a-z0-9_]*\}))*(/\{[a-z][a-z0-9_]*\.\.\.\})?$`)
+
+func TestRoutePathsMatchGatewaySchema(t *testing.T) {
+	m, err := Manifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range m.Routes {
+		if !gatewayPathRE.MatchString(r.Path) {
+			t.Errorf("%s %s: the gateway refuses this path", r.Method, r.Path)
+		}
+	}
+}

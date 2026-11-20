@@ -26,7 +26,7 @@ var provisioningRoutes = map[string]string{
 	"DELETE /api/teleport/v1/clusters/{id}/mappings/{mid}":  authz.ProvisioningManage,
 	"GET /api/teleport/v1/clusters/{id}/managed-users":      authz.UsersRead,
 	"POST /api/teleport/v1/clusters/{id}/managed-users":     authz.ProvisioningManage,
-	"POST /api/teleport/v1/clusters/{id}/provisioning:sync": authz.ProvisioningManage,
+	"POST /api/teleport/v1/clusters/{id}/provisioning/sync": authz.ProvisioningManage,
 }
 
 func provisioningRouteList() []string {
@@ -114,8 +114,8 @@ func TestProvisioningResponsesMatchSchemas(t *testing.T) {
 		{"POST", base + "/managed-users", "admin", map[string]any{"tangra_user_id": memberID}, 201, "", ""},
 		{"POST", base + "/managed-users", "admin", map[string]any{"tangra_user_id": memberID}, 409, "conflict", ""},
 		{"GET", base + "/managed-users", "viewer", nil, 200, "", ""},
-		{"POST", base + "/provisioning:sync", "operator", nil, 403, "forbidden", ""},
-		{"POST", base + "/provisioning:sync", "admin", nil, 200, "", ""},
+		{"POST", base + "/provisioning/sync", "operator", nil, 403, "forbidden", ""},
+		{"POST", base + "/provisioning/sync", "admin", nil, 200, "", ""},
 		{"GET", "/api/teleport/v1/clusters/018f3a2b-0000-7000-8000-0000000000ff/mappings", "viewer", nil, 404, "not_found", ""},
 	}
 	run := func(c tc) {
@@ -154,7 +154,7 @@ func TestProvisioningResponsesMatchSchemas(t *testing.T) {
 	run(tc{"POST", base + "/managed-users", "admin", map[string]any{"tangra_user_id": outsiderID}, 503, "dependency_unavailable", "notification"})
 	e.Notify.SetErr(nil)
 	auth.SetErr(notify.ErrUnavailable)
-	run(tc{"POST", base + "/provisioning:sync", "admin", nil, 503, "dependency_unavailable", "auth"})
+	run(tc{"POST", base + "/provisioning/sync", "admin", nil, 503, "dependency_unavailable", "auth"})
 	run(tc{"DELETE", base + "/mappings/" + m.ID, "operator", nil, 403, "forbidden", ""})
 	run(tc{"DELETE", base + "/mappings/" + m.ID, "admin", nil, 204, "", ""})
 	run(tc{"DELETE", base + "/mappings/" + m.ID, "admin", nil, 404, "not_found", ""})

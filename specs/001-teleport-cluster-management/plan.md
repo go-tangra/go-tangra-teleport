@@ -393,7 +393,7 @@ Where the real framework or peers differ from this plan, the code follows them. 
   hand-off. When the send fails the Teleport user is deleted again and the
   row goes to `error` (retried by the next sync or by POST
   /managed-users).
-- **Sync scope**: `POST /provisioning:sync` also deletes the users whose
+- **Sync scope**: `POST /provisioning/sync` also deletes the users whose
   grace period has passed on that cluster; the summary gained `unlocked`
   (contracts/http-api.md updated). Mapping subjects are immutable (PUT
   replaces roles and logins only, matching `repo.UpdateMapping`).

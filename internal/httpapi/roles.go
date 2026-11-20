@@ -25,7 +25,7 @@ func (s *Server) registerRoles(svc *roles.Service) {
 		}
 		WriteJSON(w, http.StatusOK, d)
 	})
-	s.MustHandle("POST", Prefix+"/clusters/{id}/roles:preview", func(w http.ResponseWriter, r *http.Request) {
+	s.MustHandle("POST", Prefix+"/clusters/{id}/roles/preview", func(w http.ResponseWriter, r *http.Request) {
 		var in roles.PreviewInput
 		if err := DecodeJSON(r, &in, 0); err != nil {
 			s.failIdentity(w, r, err)

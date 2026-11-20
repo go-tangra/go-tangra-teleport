@@ -21,7 +21,7 @@ export const rolesApi = {
   list: (id: string, query: { next?: string | undefined } = {}) => api<CursorPage<TeleportRole>>('GET', c(id) + '/roles', undefined, { query }),
   get: (id: string, name: string) => api<RoleDefinition>('GET', c(id) + '/roles/' + encodeURIComponent(name)),
   /** Validation and diff only; nothing changes. */
-  preview: (id: string, yaml: string, revision?: string) => api<RolePreview>('POST', c(id) + '/roles:preview', { yaml, revision }),
+  preview: (id: string, yaml: string, revision?: string) => api<RolePreview>('POST', c(id) + '/roles/preview', { yaml, revision }),
   /** An empty revision creates the role. */
   put: (id: string, name: string, yaml: string, revision?: string) => api<TeleportRole>('PUT', c(id) + '/roles/' + encodeURIComponent(name), { yaml, revision }),
   remove: (id: string, name: string) => api('DELETE', c(id) + '/roles/' + encodeURIComponent(name)),

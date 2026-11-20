@@ -90,7 +90,7 @@ func (s *Server) registerProvisioning(svc *provisioning.Service) {
 		}
 		WriteJSON(w, http.StatusCreated, v)
 	})
-	s.MustHandle("POST", Prefix+"/clusters/{id}/provisioning:sync", func(w http.ResponseWriter, r *http.Request) {
+	s.MustHandle("POST", Prefix+"/clusters/{id}/provisioning/sync", func(w http.ResponseWriter, r *http.Request) {
 		sum, err := svc.Sync(r.Context(), r.PathValue("id"))
 		if err != nil {
 			s.failProvisioning(w, r, err)

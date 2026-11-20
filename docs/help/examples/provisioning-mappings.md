@@ -100,7 +100,7 @@ Once auth offers member listing, this is how you use it:
 
 ```bash
 # Reconcile the whole cluster now (the scheduler also runs it every 15 minutes).
-tsend -X POST "$API/clusters/$CLUSTER/provisioning:sync"
+tsend -X POST "$API/clusters/$CLUSTER/provisioning/sync"
 # {"created": 2, "updated": 0, "locked": 0, "unlocked": 0, "deleted": 0, "errors": 0}
 
 # Provision one member at once. The invite goes to them through notifications.

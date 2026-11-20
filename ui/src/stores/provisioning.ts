@@ -15,5 +15,5 @@ export const mappingsApi = {
 export const managedApi = {
   list: (id: string) => api<{ items: ManagedUser[] }>('GET', c(id) + '/managed-users'),
   provision: (id: string, tangraUserId: string) => api<ManagedUser>('POST', c(id) + '/managed-users', { tangra_user_id: tangraUserId }),
-  sync: (id: string) => api<ProvisioningSummary>('POST', c(id) + '/provisioning:sync'),
+  sync: (id: string) => api<ProvisioningSummary>('POST', c(id) + '/provisioning/sync'),
 }
