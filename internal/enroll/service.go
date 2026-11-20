@@ -384,7 +384,38 @@ func (s *Service) Cancel(ctx context.Context, clusterID, id string) (v View, err
 		return View{}, err
 	}
 	s.changed(ctx, e)
+	s.revokeTokens(ctx, c.ID, e)
 	return viewOf(e), nil
+}
+
+// revokeTokens deletes from Teleport the unexpired tokens minted for e, so
+// an agent that already fetched the material cannot join after a cancel.
+// Best effort: a token that cannot be deleted still expires within
+// TokenTTL, and the agent stops when inventory no longer accepts the item.
+func (s *Service) revokeTokens(ctx context.Context, clusterID string, e repo.Enrollment) {
+	toks, err := s.Repo.ListJoinTokens(ctx, e.TenantID, clusterID)
+	if err != nil {
+		return
+	}
+	now := s.now()
+	var cl teleportapi.Client
+	for _, t := range toks {
+		if t.CreatedBy != "enrollment:"+e.ID || !t.RevokedAt.IsZero() || !now.Before(t.ExpiresAt) {
+			continue
+		}
+		if cl == nil {
+			if _, cl, err = s.Clusters.Client(ctx, clusterID, authz.ResourcesEnroll); err != nil {
+				return
+			}
+		}
+		if err := cl.DeleteJoinToken(ctx, t.TokenHash); err != nil && !errors.Is(err, teleportapi.ErrNotFound) {
+			continue
+		}
+		if err := s.Repo.RevokeJoinToken(ctx, e.TenantID, t.ID, now); err != nil {
+			continue
+		}
+		events.Emit(ctx, s.Events, e.TenantID, events.TokenRevoked, events.Token{ClusterID: clusterID, TokenID: t.ID, ResourceType: t.ResourceType})
+	}
 }
 
 // Retry enrolls the host of a finished, unsuccessful enrollment again

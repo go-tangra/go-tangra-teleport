@@ -323,6 +323,56 @@ func TestRenderFailures(t *testing.T) {
 	}
 }
 
+// TestCancelRevokesMintedToken: an agent that already fetched the material
+// cannot join after the enrollment is cancelled: the token it holds is
+// deleted from Teleport and marked revoked.
+func TestCancelRevokesMintedToken(t *testing.T) {
+	e := setup(t)
+	v := one(t, e, host1)
+	other := one(t, e, host2)
+	m, err := e.svc.Render(worker(ct.TenantA), enroll.RenderInput{EnrollmentID: v.ID, HostID: host1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Render(worker(ct.TenantA), enroll.RenderInput{EnrollmentID: other.ID, HostID: host2}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Cancel(operator, e.cid, v.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Teleport.Join(string(m.Token.Reveal()), teleportapi.RoleNode, e.Now()); err == nil {
+		t.Fatal("the cancelled enrollment's token still joins")
+	}
+	if e.Teleport.TokenCount() != 1 {
+		t.Fatalf("tokens left = %d, want the other enrollment's only", e.Teleport.TokenCount())
+	}
+	toks, err := e.Repo.ListJoinTokens(context.Background(), ct.TenantA, e.cid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoked := 0
+	for _, tk := range toks {
+		if !tk.RevokedAt.IsZero() {
+			revoked++
+			if tk.CreatedBy != "enrollment:"+v.ID {
+				t.Fatalf("revoked %+v", tk)
+			}
+		}
+	}
+	if revoked != 1 {
+		t.Fatalf("revoked = %d", revoked)
+	}
+	// Teleport unreachable for the revoke: the cancel still stands.
+	v3 := one(t, e, host1)
+	if _, err := e.svc.Render(worker(ct.TenantA), enroll.RenderInput{EnrollmentID: v3.ID, HostID: host1}); err != nil {
+		t.Fatal(err)
+	}
+	e.Teleport.FailNext("DeleteJoinToken", errors.New("boom"))
+	if c, err := e.svc.Cancel(operator, e.cid, v3.ID); err != nil || c.State != repo.EnrollCancelled {
+		t.Fatalf("cancel with revoke failure %+v %v", c, err)
+	}
+}
+
 func TestCancelAndRetry(t *testing.T) {
 	e := setup(t)
 	v := one(t, e, host1)

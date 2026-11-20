@@ -131,6 +131,10 @@ configuration.
   `joined`.
 - **Host deleted or retired in inventory** while queued: the item is
   cancelled.
+- **Cancelled after the agent fetched the token**: the module deletes the
+  enrollment's unexpired tokens from Teleport (marked revoked in the Tokens
+  tab), and the agent, which asks inventory every 30 s while it waits for
+  the join, rolls its install back.
 - **Cluster deleted**: queued items for it are cancelled; joined nodes are
   left alone (the operator removes Teleport on the host).
 - **Proxy address private**: the address the agent dials is the cluster's
