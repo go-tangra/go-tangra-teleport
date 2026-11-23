@@ -225,6 +225,9 @@ type Service struct {
 	Repo    repo.Store
 	Secrets secrets.Store
 	Pool    *teleportapi.Pool
+	// AccessPool keeps the access identities' connections (spec 005),
+	// separate from the management ones; nil disables access identities.
+	AccessPool *teleportapi.Pool
 	// Dial opens the one-off verification connection with an identity that is
 	// not stored yet (default teleportapi.Dial).
 	Dial       func(ctx context.Context, p teleportapi.DialParams) (teleportapi.Client, error)
@@ -547,6 +550,7 @@ func (s *Service) forget(id string) {
 	defer s.mu.Unlock()
 	delete(s.failures, id)
 	delete(s.announced, id)
+	delete(s.announced, accessAnnounceKey(id))
 }
 
 // markAnnounced records key as the cluster's announced stage; false when it
@@ -586,6 +590,11 @@ func (s *Service) announce(ctx context.Context, prev string, c repo.Cluster, now
 // notify sends template about c to the condition's recipients when the
 // cluster's alerts are enabled. Variables are identifiers and status text only.
 func (s *Service) notify(ctx context.Context, c repo.Cluster, template, condition string) {
+	s.notifyWith(ctx, c, template, condition, nil)
+}
+
+// notifyWith is notify with extra (or overriding) variables.
+func (s *Service) notifyWith(ctx context.Context, c repo.Cluster, template, condition string, extra map[string]string) {
 	if s.Notify == nil || !c.Settings.AlertsEnabled {
 		return
 	}
@@ -604,6 +613,9 @@ func (s *Service) notify(ctx context.Context, c repo.Cluster, template, conditio
 	}
 	if !c.CredentialExpiresAt.IsZero() {
 		vars["expires_at"] = c.CredentialExpiresAt.Format(time.RFC3339)
+	}
+	for k, v := range extra {
+		vars[k] = v
 	}
 	for _, r := range to {
 		if err := s.Notify.Send(ctx, notify.Message{TenantID: c.TenantID, Template: template, To: r, Vars: vars, CorrelationID: c.ID}); err != nil {
@@ -627,6 +639,14 @@ func ReasonOf(err error) string {
 		return "validation_failed"
 	case errors.Is(err, ErrUnsupportedVersion):
 		return "unsupported_version"
+	case errors.Is(err, ErrNotSignIn):
+		return "access_identity_not_sign_in"
+	case errors.Is(err, ErrCannotImpersonate):
+		return "access_identity_cannot_impersonate"
+	case errors.Is(err, ErrAccessIdentityMissing):
+		return "access_identity_missing"
+	case errors.Is(err, ErrAccessIdentityExpired):
+		return "access_identity_expired"
 	case errors.Is(err, authz.ErrForbidden):
 		return "forbidden"
 	case errors.Is(err, secrets.ErrWriteUnsupported), errors.Is(err, secrets.ErrUnavailable):
@@ -901,6 +921,7 @@ func (s *Service) CheckCluster(ctx context.Context, c repo.Cluster) (repo.Cluste
 		return c, err
 	}
 	s.announce(ctx, prev, updated, now)
+	s.announceAccess(ctx, updated, now)
 	return updated, nil
 }
 
@@ -933,6 +954,7 @@ func (s *Service) CheckCredential(ctx context.Context, c repo.Cluster) (repo.Clu
 		}
 	}
 	s.announce(ctx, prev, c, now)
+	s.announceAccess(ctx, c, now)
 	return c, nil
 }
 
@@ -949,6 +971,10 @@ func unreachableReason(last time.Time) string {
 func (s *Service) Remove(ctx context.Context, id string) error {
 	c, err := s.Authz.RequireCluster(ctx, id, authz.ClustersManage)
 	if err != nil {
+		return err
+	}
+	if err := s.removeAccessIdentity(ctx, c); err != nil {
+		s.record(ctx, audit.ClusterRemove, audit.TargetCluster, c.ID, c.DisplayName, err, nil)
 		return err
 	}
 	if ref, perr := secrets.ParseRef(c.CredentialRef); perr == nil {
@@ -987,6 +1013,11 @@ func (s *Service) PurgeTenant(ctx context.Context, tenantID string) (removed int
 	}
 	var errs []error
 	for _, c := range cs {
+		if derr := s.removeAccessIdentity(ctx, c); derr != nil {
+			s.record(ctx, audit.ClusterRemove, audit.TargetCluster, c.ID, c.DisplayName, derr, map[string]any{"reason": "tenant_deleted"})
+			errs = append(errs, derr)
+			continue
+		}
 		if ref, perr := secrets.ParseRef(c.CredentialRef); perr == nil {
 			if derr := s.Secrets.Delete(ctx, ref); derr != nil && !errors.Is(derr, secrets.ErrNotFound) {
 				s.record(ctx, audit.ClusterRemove, audit.TargetCluster, c.ID, c.DisplayName, derr, map[string]any{"reason": "tenant_deleted"})

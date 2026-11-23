@@ -134,6 +134,7 @@ type App struct {
 	Guard       *netguard.Guard
 	Limits      teleportapi.Limits
 	Pool        *teleportapi.Pool
+	AccessPool  *teleportapi.Pool  // spec 005: access identity connections
 	Notify      notify.Notifier    // notification module (lazy mesh connection)
 	Clusters    *clusters.Service  // US1
 	Users       *users.Service     // US2
@@ -395,6 +396,10 @@ func (a *App) buildTeleport(cfg config.Config, o Options) error {
 	}
 	a.Pool = teleportapi.NewPool(dial)
 	a.closers = append(a.closers, a.Pool.Close)
+	// Spec 005: the access identities' connections, apart from the
+	// management ones (same dial: the key names the access secret).
+	a.AccessPool = teleportapi.NewPool(dial)
+	a.closers = append(a.closers, a.AccessPool.Close)
 	return nil
 }
 
@@ -413,7 +418,7 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 		verify = teleportapi.Dial
 	}
 	a.Clusters = &clusters.Service{
-		Repo: a.Repo, Secrets: a.Secrets, Pool: a.Pool, Dial: verify, Guard: a.Guard, Limits: a.Limits,
+		Repo: a.Repo, Secrets: a.Secrets, Pool: a.Pool, AccessPool: a.AccessPool, Dial: verify, Guard: a.Guard, Limits: a.Limits,
 		Authz: a.Authz, Audit: a.Audit, Events: a.Events, Notify: a.Notify, Recipients: clusters.RuleRecipients(a.Repo),
 		Log: a.Log, WarnBefore: cfg.CredentialWarn(), UnreachableAfter: cfg.Thresholds.UnreachableAfterFailures,
 		OfflineThresholdMinutes: cfg.Thresholds.OfflineMinutes,
