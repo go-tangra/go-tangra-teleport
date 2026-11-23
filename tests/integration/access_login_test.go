@@ -171,3 +171,29 @@ func signIn(t *testing.T, ctx context.Context, c testcontainers.Container, guard
 	}
 	return signedIn{identity: b, password: password, secret: secret}
 }
+
+// tshLogin runs the documented `tsh login --format=file --out` inside the
+// container as the signed-in user si (spec 005: how an operator obtains the
+// access identity) and returns the identity file. tsh needs a terminal for
+// the password and the TOTP code: busybox script provides one, and the
+// answers to its terminal queries (background colour, cursor position)
+// are typed before the password. ttlMinutes is tsh's --ttl.
+func tshLogin(t *testing.T, ctx context.Context, c testcontainers.Container, si signedIn, user string, ttlMinutes int) []byte {
+	t.Helper()
+	// A TOTP code is used once: start in a fresh window.
+	time.Sleep(time.Until(time.Unix((time.Now().Unix()/30+1)*30, 0).Add(time.Second)))
+	code := totp(t, si.secret, time.Now())
+	const out = "/tmp/tsh-login.identity"
+	cmd := fmt.Sprintf("(sleep 3; printf '\\033]11;rgb:0000/0000/0000\\033\\\\\\033[1;1R'; sleep 2; echo '%s'; sleep 4; echo '%s'; sleep 15) | "+
+		"HOME=/tmp timeout 60 script -q -c 'tsh login --insecure --proxy=localhost:3080 --user=%s --ttl=%d --format=file --out=%s --overwrite' /dev/null 2>&1; echo rc=$?",
+		si.password, code, user, ttlMinutes, out)
+	_, r, err := c.Exec(ctx, []string{"/busybox/sh", "-c", cmd})
+	if err != nil {
+		t.Fatalf("tsh login: %v", err)
+	}
+	b, _ := io.ReadAll(r)
+	if !strings.Contains(string(b), "rc=0") {
+		t.Fatalf("tsh login: %q", b)
+	}
+	return copyOut(t, ctx, c, out)
+}
