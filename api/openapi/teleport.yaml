@@ -104,6 +104,7 @@ components:
         - user_locked
         - session_mfa_required
         - management_role_outdated
+        - management_identity_unsuitable
         - too_many
         - terminal_ended
     Error:
@@ -1626,7 +1627,10 @@ paths:
         409 not_provisioned or user_locked; 422 validation_failed,
         session_mfa_required (a role needs Teleport's per-session MFA) or
         management_role_outdated (the management role cannot impersonate
-        managed users: re-run the bootstrap); 502 cluster_unreachable.
+        managed users: re-run the bootstrap) or management_identity_unsuitable
+        (the registered identity is a tctl auth sign identity, which Teleport
+        never lets impersonate: register a sign-in identity); 502
+        cluster_unreachable.
       x-freya-permission: 'access:download'
       parameters: [{ $ref: '#/components/parameters/csrf' }]
       requestBody:

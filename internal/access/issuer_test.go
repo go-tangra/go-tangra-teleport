@@ -116,9 +116,9 @@ func TestResolveBindsTheCallerToTheirOwnManagedUser(t *testing.T) {
 func TestResolveChecksLabels(t *testing.T) {
 	e := newEnv(t)
 	for name, lbl := range map[string]map[string]string{
-		"tangra-carol-1": labels(ct.TenantB, carol),                                      // another tenant
-		"tangra-carol-2": labels(ct.TenantA, alice),                                      // another person
-		"tangra-carol-3": {users.LabelTenant: ct.TenantA, users.LabelUser: carol},        // not managed
+		"tangra-carol-1": labels(ct.TenantB, carol),                               // another tenant
+		"tangra-carol-2": labels(ct.TenantA, alice),                               // another person
+		"tangra-carol-3": {users.LabelTenant: ct.TenantA, users.LabelUser: carol}, // not managed
 		"tangra-carol-4": {users.LabelManaged: "false", users.LabelTenant: ct.TenantA, users.LabelUser: carol},
 	} {
 		e2 := newEnv(t)

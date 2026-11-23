@@ -92,6 +92,13 @@ const (
 	BackupImport Action = "teleport.backup.import"
 
 	AccessRefused Action = "teleport.access.refused"
+
+	// Brokered access (spec 004): a downloaded identity, a terminal's start
+	// and end. Rows name the Teleport user, node and login, never a key, a
+	// certificate or terminal content.
+	AccessIssued    Action = "teleport.access.issued"
+	TerminalStarted Action = "teleport.terminal.started"
+	TerminalEnded   Action = "teleport.terminal.ended"
 )
 
 // Vocabulary lists every action.
@@ -110,6 +117,7 @@ var Vocabulary = []Action{
 	SessionPlayed,
 	BackupExport, BackupImport,
 	AccessRefused,
+	AccessIssued, TerminalStarted, TerminalEnded,
 }
 
 // Target kinds (closed set).

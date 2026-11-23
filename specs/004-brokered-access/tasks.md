@@ -18,9 +18,9 @@ Tests are required (constitution IV): write each test before its code.
 
 ## Phase 3: US5 + US3 – issuance bounded to the caller's managed user, MFA required (P1)
 
-- [ ] T008 [P] [US5] Tests internal/access/issuer_test.go: caller resolves only to their own managed user (tenant + tangra user labels, R2); not provisioned → ErrNotProvisioned; label mismatch → refused; impersonation denied → ErrRoleOutdated; amr without otp/hwk → ErrMFARequired; roles with require_session_mfa → ErrSessionMFARequired (R9); TTL clamp to settings
-- [ ] T009 [US5] Implement internal/access/issuer.go, errors.go, settings.go; caller identity (tenant, user, amr) passed from httpapi (extend the subject built in internal/httpapi/middleware.go to carry AMR)
-- [ ] T010 [US5] Audit rows (R12) for every issuance and refusal via audit.Recorder; test that no key/cert bytes reach audit or logs
+- [X] T008 [P] [US5] Tests internal/access/issuer_test.go: caller resolves only to their own managed user (tenant + tangra user labels, R2); not provisioned → ErrNotProvisioned; label mismatch → refused; impersonation denied → ErrRoleOutdated; amr without otp/hwk → ErrMFARequired; roles with require_session_mfa → ErrSessionMFARequired (R9); TTL clamp to settings
+- [X] T009 [US5] Implement internal/access/issuer.go, errors.go, settings.go; caller identity (tenant, user, amr) passed from httpapi (extend the subject built in internal/httpapi/middleware.go to carry AMR)
+- [X] T010 [US5] Audit rows (R12) for every issuance and refusal via audit.Recorder; test that no key/cert bytes reach audit or logs
 
 ## Phase 4: US2 – download access for tsh (P1)
 

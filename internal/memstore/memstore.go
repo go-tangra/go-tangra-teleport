@@ -59,7 +59,7 @@ func New() *Mem {
 		rules: map[string]repo.AlertRule{}, cursors: map[string]repo.AlertCursor{}, deliveries: map[string]repo.AlertDelivery{},
 		drafts: map[string]repo.DeploymentDraft{}, enrolls: map[string]repo.Enrollment{}, access: map[string]repo.AccessSettings{},
 		failNext: map[string]bool{},
-		Now: func() time.Time { return time.Now().UTC() },
+		Now:      func() time.Time { return time.Now().UTC() },
 	}
 }
 

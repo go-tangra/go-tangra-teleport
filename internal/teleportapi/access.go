@@ -371,7 +371,9 @@ func (r *real) SessionMFARequired(ctx context.Context) (bool, error) {
 // teleport/api asks for (research D12).
 func (t dialTarget) pinnedDialer() func(ctx context.Context, network, addr string) (net.Conn, error) {
 	pinned := t.guard.Dialer(t.proxyAddr)
-	return func(ctx context.Context, network, _ string) (net.Conn, error) { return pinned(ctx, network, t.proxyAddr) }
+	return func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return pinned(ctx, network, t.proxyAddr)
+	}
 }
 
 func (t dialTarget) check(ctx context.Context) error {
@@ -589,11 +591,11 @@ func startShell(client *ssh.Client, req ShellRequest) (*sshShell, error) {
 	return sh, nil
 }
 
-func (s *sshShell) Output() io.Reader             { return s.out }
-func (s *sshShell) Write(p []byte) (int, error)   { return s.stdin.Write(p) }
-func (s *sshShell) Done() <-chan struct{}         { return s.done }
-func (s *sshShell) Resize(cols, rows int) error   { return s.sess.WindowChange(rows, cols) }
-func (s *sshShell) Err() error                    { <-s.done; return s.err }
+func (s *sshShell) Output() io.Reader           { return s.out }
+func (s *sshShell) Write(p []byte) (int, error) { return s.stdin.Write(p) }
+func (s *sshShell) Done() <-chan struct{}       { return s.done }
+func (s *sshShell) Resize(cols, rows int) error { return s.sess.WindowChange(rows, cols) }
+func (s *sshShell) Err() error                  { <-s.done; return s.err }
 func (s *sshShell) Close() error {
 	s.once.Do(func() {
 		_ = s.sess.Close()
