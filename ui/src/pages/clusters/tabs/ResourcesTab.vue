@@ -5,11 +5,13 @@
 // or removed (resources:link). When the inventory/asset lookup is down the
 // list says so; manual links still work.
 import { computed, inject, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiInput, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { explain } from '@/api/client'
 import { enrollmentsApi, resourcesApi, type ResourceQuery } from '@/stores/resources'
+import { accessApi } from '@/stores/access'
 import type { Cluster, Enrollment, EnrollmentState, ResourceLink, ResourcePage, TeleportResource } from '@/api/types'
 import { formatTime } from '../status'
 import EnrollDialog from '@/components/EnrollDialog.vue'
@@ -20,6 +22,41 @@ const ability = inject<AnyAbility | null>(ABILITY_TOKEN, null)
 const canLink = computed(() => (ability ? ability.can('link', 'TeleportResource') : true))
 const canEnroll = computed(() => (ability ? ability.can('manage', 'TeleportToken') : true) && !props.cluster.writes_blocked)
 const confirm = useConfirm()
+const router = useRouter()
+
+// Spec 004: a terminal on a node as the caller's own Teleport user
+// (access:terminal). The logins offered are the user's; Teleport decides.
+const canTerminal = computed(() => (ability ? ability.can('terminal', 'TeleportAccess') : true))
+const terminalFor = ref<TeleportResource | null>(null)
+const terminalLogins = ref<string[]>([])
+const terminalLogin = ref('')
+const terminalError = ref('')
+const terminalLoading = ref(false)
+async function openTerminal(r: TeleportResource): Promise<void> {
+  terminalFor.value = r
+  terminalError.value = ''
+  terminalLogins.value = []
+  terminalLoading.value = true
+  try {
+    const nodes = await accessApi.nodes(props.cluster.id)
+    const n = nodes.items.find((x) => x.name === r.name)
+    if (!n) terminalError.value = 'Your Teleport user cannot reach this node.'
+    else terminalLogins.value = n.logins
+    terminalLogin.value = terminalLogins.value[0] ?? ''
+    if (n && !n.logins.length) terminalError.value = 'Your Teleport user holds no login.'
+  } catch (e) {
+    terminalError.value = explain(e)
+  } finally {
+    terminalLoading.value = false
+  }
+}
+function startTerminal(): void {
+  const r = terminalFor.value
+  if (!r || !terminalLogin.value) return
+  const href = router.resolve({ name: 'teleport-terminal', params: { id: props.cluster.id }, query: { node: r.name, login: terminalLogin.value, host: r.hostname || r.name } }).href
+  window.open(href, '_blank', 'noopener')
+  terminalFor.value = null
+}
 
 const filter = ref<ResourceQuery>({})
 const items = ref<TeleportResource[]>([])
@@ -179,6 +216,16 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
               <UiButton v-if="canLink" size="sm" variant="text" icon="mdi-cancel" icon-only label="Remove link" @click="unlink(row, l)" />
             </template>
             <UiButton v-if="canLink" size="sm" variant="text" icon="mdi-link-variant" icon-only label="Link" :data-test="'resource-link-' + row.id" @click="openLink(row)" />
+            <UiButton
+              v-if="canTerminal && row.kind === 'node' && row.status === 'online'"
+              size="sm"
+              variant="text"
+              icon="mdi-console"
+              icon-only
+              label="Terminal"
+              :data-test="'resource-terminal-' + row.id"
+              @click="openTerminal(row)"
+            />
           </div>
         </template>
       </UiDataTable>
@@ -210,6 +257,26 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
       <template #actions>
         <UiButton variant="text" @click="linking = null">Cancel</UiButton>
         <UiButton color="primary" :disabled="!linkTarget" data-test="resource-link-save" @click="linking && confirmLink(linking, { target_module: linkModule, target_id: linkTarget })">Link</UiButton>
+      </template>
+    </UiDialog>
+    <UiDialog :model-value="terminalFor !== null" title="Open a terminal" data-test="resource-terminal-dialog" @update:model-value="(v: boolean) => { if (!v) terminalFor = null }">
+      <div class="flex flex-col gap-4">
+        <p v-if="terminalFor" class="text-sm">On <span class="font-mono">{{ terminalFor.hostname || terminalFor.name }}</span> as your own Teleport user. The session is recorded by Teleport.</p>
+        <UiAlert v-if="terminalError" kind="error" data-test="resource-terminal-error">{{ terminalError }}</UiAlert>
+        <UiSelect
+          v-if="terminalLogins.length"
+          id="resource-terminal-login"
+          :model-value="terminalLogin"
+          label="Login"
+          :options="terminalLogins.map((l) => ({ title: l, value: l }))"
+          :clearable="false"
+          data-test="resource-terminal-login"
+          @update:model-value="(v: unknown) => (terminalLogin = String(v ?? ''))"
+        />
+      </div>
+      <template #actions>
+        <UiButton variant="text" @click="terminalFor = null">Cancel</UiButton>
+        <UiButton color="primary" icon="mdi-console" :loading="terminalLoading" :disabled="!terminalLogin" data-test="resource-terminal-open" @click="startTerminal()">Open</UiButton>
       </template>
     </UiDialog>
     <EnrollDialog v-model="enrolling" :cluster="cluster" @issued="load()" />

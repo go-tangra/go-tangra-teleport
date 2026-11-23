@@ -120,7 +120,9 @@ func (s *Server) registerTerminals(hub *terminal.Hub) {
 			return
 		}
 		from := int64(0)
-		for _, v := range []string{r.Header.Get("Last-Event-ID"), r.URL.Query().Get("from")} {
+		// The browser's Last-Event-ID (an automatic reconnect) is newer than
+		// the URL's from.
+		for _, v := range []string{r.URL.Query().Get("from"), r.Header.Get("Last-Event-ID")} {
 			if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
 				from = n
 			}

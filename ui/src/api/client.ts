@@ -22,6 +22,15 @@ registerReasons({
   playback_expired: 'This playback has expired; start it again.',
   recording_too_large: 'This recording is too large to play here.',
   not_playable: 'Only SSH terminal sessions can be played here.',
+  // Brokered access (spec 004).
+  mfa_required: 'Sign in to the portal with a second factor (MFA) to get Teleport access.',
+  not_provisioned: 'You have no Teleport user on this cluster. Ask an administrator to provision you.',
+  user_locked: 'Your Teleport user on this cluster is locked.',
+  session_mfa_required: "A role of your Teleport user requires Teleport's per-session MFA; use tsh login on this cluster.",
+  management_role_outdated: "The cluster's management role cannot impersonate managed users; an administrator must apply the current tangra-manager role.",
+  management_identity_unsuitable: "The cluster's management identity cannot impersonate (it was made with tctl auth sign); an administrator must register a sign-in identity.",
+  too_many: 'Too many terminals are open. End one first.',
+  terminal_ended: 'This terminal has ended.',
 })
 
 export const api = createApi({ base: BASE })

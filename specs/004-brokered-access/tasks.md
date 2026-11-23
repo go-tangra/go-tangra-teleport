@@ -40,10 +40,10 @@ Tests are required (constitution IV): write each test before its code.
 
 ## Phase 6: US1/US2/US4 UI
 
-- [ ] T021 [P] [US1] ui/src/stores/access.ts (API calls) and ui/src/pages/clusters/TerminalPage.vue: interactive xterm (reuse cspStyles from the player), SSE reconnect with offset, input/resize POSTs, keepalive every 60 s, DELETE on unmount; route `/teleport/clusters/:id/terminal` with `node` and `login` query
-- [ ] T022 [P] [US2] ui/src/pages/clusters/MyAccessCard.vue on the cluster overview: my Teleport user, logins, "Download access for tsh" (permission-gated) with the command line and expiry; explains not-provisioned and MFA-required states
-- [ ] T023 [US1] Resources tab: "Terminal" action with login picker on nodes the user can reach (permission-gated); administrators see access settings (TTL) on the cluster settings
-- [ ] T024 [US1] UI unit tests (ui/tests/unit/terminal-page.spec.ts, my-access.spec.ts); icons only from ICONS (icons.spec.ts must pass)
+- [X] T021 [P] [US1] ui/src/stores/access.ts (API calls) and ui/src/pages/clusters/TerminalPage.vue: interactive xterm (reuse cspStyles from the player), SSE reconnect with offset, input/resize POSTs, keepalive every 60 s, DELETE on unmount; route `/teleport/clusters/:id/terminal` with `node` and `login` query
+- [X] T022 [P] [US2] ui/src/pages/clusters/MyAccessCard.vue on the cluster overview: my Teleport user, logins, "Download access for tsh" (permission-gated) with the command line and expiry; explains not-provisioned and MFA-required states
+- [X] T023 [US1] Resources tab: "Terminal" action with login picker on nodes the user can reach (permission-gated); administrators see access settings (TTL) on the cluster settings
+- [X] T024 [US1] UI unit tests (ui/tests/unit/terminal-page.spec.ts, my-access.spec.ts); icons only from ICONS (icons.spec.ts must pass)
 
 ## Phase 7: Integration and polish
 

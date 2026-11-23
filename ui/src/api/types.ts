@@ -449,3 +449,48 @@ export type EnrollmentsCreated = {
   items: Enrollment[]
   refused: { host_id: string; reason: string }[]
 }
+
+// ---- spec 004: brokered access
+
+export interface AccessSettings {
+  access_ttl_minutes: number
+  updated_at?: string | undefined
+  updated_by?: string | undefined
+}
+
+/** The caller's provisioned Teleport identity on a cluster (never chosen by a request). */
+export interface MyAccess {
+  teleport_user: string
+  roles: string[]
+  logins: string[]
+  /** The portal session used MFA (required for any issuance). */
+  mfa: boolean
+  can_terminal: boolean
+  can_download: boolean
+  proxy_addr: string
+  cluster_name: string
+  settings: AccessSettings
+}
+
+export interface AccessNode {
+  name: string
+  hostname: string
+  labels: Record<string, string>
+  logins: string[]
+}
+
+export interface TerminalView {
+  terminal_id: string
+  node: string
+  login: string
+  teleport_user: string
+  started_at: string
+  expires_at: string
+}
+
+/** A downloaded identity file: only its metadata is kept after saving it. */
+export interface IssuedIdentity {
+  user: string
+  expires_at: string
+  filename: string
+}
