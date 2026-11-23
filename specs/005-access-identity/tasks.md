@@ -18,12 +18,12 @@ Tests are required (constitution IV): write each test before its code.
 
 - [X] T006 [US1] Tests internal/clusters/accessidentity_test.go: verify-then-store, replace, remove, refusals (not sign-in, other cluster, expired, empty, cannot impersonate, secret store down), no managed user, cluster removal and tenant purge
 - [X] T007 [US1] Implement internal/clusters/accessidentity.go (status, put, delete, AccessClient) and the separate pool in internal/app
-- [ ] T008 [US1] OpenAPI routes `GET/PUT/DELETE /clusters/{id}/access-identity` (no `:`), handlers in internal/httpapi/accessidentity.go, contract tests
+- [X] T008 [US1] OpenAPI routes `GET/PUT/DELETE /clusters/{id}/access-identity` (no `:`), handlers in internal/httpapi/accessidentity.go, contract tests
 
 ## Phase 4: US2 – brokered access uses it (P1)
 
-- [ ] T009 [US2] Tests internal/access: issuance through the access identity; fallback to the management identity; `access_identity_missing`, `access_identity_expired`, `access_identity_invalid`; open terminals unaffected
-- [ ] T010 [US2] Implement in internal/access/issuer.go and errors.go; retire `management_role_outdated` / `management_identity_unsuitable`; `access_identity` in GET access; httpapi messages; OpenAPI reasons
+- [X] T009 [US2] Tests internal/access: issuance through the access identity; fallback to the management identity; `access_identity_missing`, `access_identity_expired`, `access_identity_invalid`; open terminals unaffected
+- [X] T010 [US2] Implement in internal/access/issuer.go and errors.go; retire `management_role_outdated` / `management_identity_unsuitable`; `access_identity` in GET access; httpapi messages; OpenAPI reasons
 
 ## Phase 5: US3 – expiry alerts (P2)
 
@@ -31,15 +31,15 @@ Tests are required (constitution IV): write each test before its code.
 
 ## Phase 6: Teleport side
 
-- [ ] T012 Remove the impersonate rule from internal/deploy/templates/tangra-manager-role.yaml.tmpl, goldens and docs/help/reference/tangra-manager-role.md; add `tangra-access-role.yaml` artifact (role, `max_session_ttl`), setup-commands step and docs/help/reference/tangra-access-role.md; render tests
+- [X] T012 Remove the impersonate rule from internal/deploy/templates/tangra-manager-role.yaml.tmpl, goldens and docs/help/reference/tangra-manager-role.md; add `tangra-access-role.yaml` artifact (role, `max_session_ttl`), setup-commands step and docs/help/reference/tangra-access-role.md; render tests
 
 ## Phase 7: UI
 
-- [ ] T013 `AccessIdentityCard.vue` on the cluster page (status, expiry, upload/replace/remove, the `tsh login` command); store calls; unit test
-- [ ] T014 MyAccessCard and TerminalPage explain `access_identity_missing` / `access_identity_expired`; reasons in ui/src/api/client.ts; icons from ICONS only
+- [X] T013 `AccessIdentityCard.vue` on the cluster page (status, expiry, upload/replace/remove, the `tsh login` command); store calls; unit test
+- [X] T014 MyAccessCard and TerminalPage explain `access_identity_missing` / `access_identity_expired`; reasons in ui/src/api/client.ts; icons from ICONS only
 
 ## Phase 8: Integration and polish
 
-- [ ] T015 tests/integration/access_identity_test.go (Teleport 18): management identity can no longer impersonate; a `tsh login` identity of tangra-access can; upload refuses a `tctl auth sign` identity; terminal end-to-end with the access identity
-- [ ] T016 Docs: guides/portal-access.md (bootstrap for an existing cluster), api.md, known-limitations; plan Deviations
-- [ ] T017 CI gates: gofmt, vet, staticcheck, gosec, `go test -race`, coverage, integration, UI lint/test/build
+- [X] T015 tests/integration/access_identity_test.go (Teleport 18): management identity can no longer impersonate; a `tsh login` identity of tangra-access can; upload refuses a `tctl auth sign` identity; terminal end-to-end with the access identity
+- [X] T016 Docs: guides/portal-access.md (bootstrap for an existing cluster), api.md, known-limitations; plan Deviations
+- [X] T017 CI gates: gofmt, vet, staticcheck, gosec, `go test -race`, coverage, integration, UI lint/test/build
