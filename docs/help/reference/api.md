@@ -102,6 +102,8 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET /clusters/{id}/access`, `GET /clusters/{id}/access/nodes` | `access:terminal` |
 | `POST /clusters/{id}/access/identity` (optional `{"ttl_minutes": n}`; answers the identity file as a `text/plain` attachment with `X-Teleport-Expires` and `X-Teleport-User`) | `access:download` |
 | `PUT /clusters/{id}/access/settings` (`{"access_ttl_minutes": 15..720}`) | `clusters:manage` |
+| `GET /clusters/{id}/access-identity` (`configured`, `teleport_user`, `expires_at`, `state` ok / expiring / expired / missing) | `clusters:read` |
+| `PUT /clusters/{id}/access-identity` (`{"credential": "<tsh login identity file>"}`), `DELETE /clusters/{id}/access-identity` | `clusters:manage` |
 | `POST /clusters/{id}/terminals`, `DELETE /clusters/{id}/terminals/{tid}`, `GET /clusters/{id}/terminals/{tid}/output` (server-sent events: `output` with the byte offset as id, `gap`, `end`, `bye`; resume with `Last-Event-ID` or `?from=`), `POST /clusters/{id}/terminals/{tid}/input` (`{"data": base64}`, at most 64 KiB), `POST .../resize`, `POST .../keepalive` | `access:terminal` |
 | `GET /alert-rules` | `alerts:read` |
 | `POST /alert-rules`, `PUT` and `DELETE /alert-rules/{id}` | `alerts:manage` |
@@ -221,8 +223,11 @@ Every refusal is JSON with a stable `reason`, sometimes a `message` and a
 | 409 | `user_locked` | A Teleport lock targets your Teleport user |
 | 409 | `terminal_ended` | The terminal has ended |
 | 422 | `session_mfa_required` | A role of your Teleport user (or the cluster) requires Teleport's per-session MFA |
-| 422 | `management_role_outdated` | The management role cannot impersonate managed users; apply the current tangra-manager role |
-| 422 | `management_identity_unsuitable` | The management identity was made with `tctl auth sign`, which Teleport never lets impersonate; register a sign-in identity |
+| 422 | `access_identity_missing` | The cluster has no access identity and the management identity cannot impersonate; upload a `tsh login` identity of `tangra-access` |
+| 422 | `access_identity_expired` | The cluster's access identity has expired; sign in as `tangra-access` again and replace it |
+| 422 | `access_identity_invalid` | Teleport rejected the access identity or refused its impersonation; check the `tangra-access` role and replace it |
+| 422 | `access_identity_not_sign_in` | The uploaded identity was made with `tctl auth sign`; upload a `tsh login` identity |
+| 422 | `access_identity_cannot_impersonate` | Teleport refused certificates for a provisioned user with the uploaded identity |
 | 429 | `too_many` | You already have 5 terminals open (or the module its maximum) |
 | 429 | `rate_limited` | Deployment checks were run again within 10 seconds, or too many recording pages are being read (honour `Retry-After`) |
 | 501 | `not_implemented` | The route is not available in this build |

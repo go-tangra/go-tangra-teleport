@@ -1,0 +1,19 @@
+kind: role
+version: v7
+metadata:
+  name: tangra-access
+  description: Portal terminals and tsh downloads of the tangra platform (brokered access)
+spec:
+  options:
+    # The sign-in identity of tangra-access lives as long as tsh login asks
+    # for, up to this (Teleport 18 applies no lower ceiling of its own).
+    max_session_ttl: 8760h
+  allow:
+    # Obtain short-lived certificates as the Teleport users the platform
+    # provisioned (labelled tangra.io/managed), never as a local user such
+    # as the cluster administrator. Nothing else: no logins, no reads.
+    impersonate:
+      users: ['*']
+      roles: ['*']
+      where: 'equals(impersonate_user.metadata.labels["tangra.io/managed"], "true")'
+  deny: {}

@@ -364,7 +364,7 @@ export interface ProvisioningSummary {
 // ---- Deployment wizard (US6)
 
 export type CertMode = 'acme' | 'own_cert'
-export type ArtifactName = 'teleport.yaml' | 'install.sh' | 'tangra-manager-role.yaml' | 'setup-commands.txt' | 'checklist.md'
+export type ArtifactName = 'teleport.yaml' | 'install.sh' | 'tangra-manager-role.yaml' | 'tangra-access-role.yaml' | 'setup-commands.txt' | 'checklist.md'
 
 export interface DraftInput {
   domain: string

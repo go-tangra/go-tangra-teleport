@@ -823,7 +823,7 @@ components:
         ok: { type: boolean }
         detail: { type: string, description: 'the outcome class; never a resolved address' }
         checked_at: { type: string, format: date-time }
-    ArtifactName: { type: string, enum: [teleport.yaml, install.sh, tangra-manager-role.yaml, setup-commands.txt, checklist.md] }
+    ArtifactName: { type: string, enum: [teleport.yaml, install.sh, tangra-manager-role.yaml, tangra-access-role.yaml, setup-commands.txt, checklist.md] }
     Draft:
       type: object
       required: [id, domain, cert_mode, teleport_version, admin_username, admin_logins, checks, proxy_addr, artifacts, created_by, created_at, updated_at]

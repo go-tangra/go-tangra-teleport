@@ -75,9 +75,11 @@ playback again.
 ### Brokered access
 
 Terminals in the portal and identity downloads for `tsh` (see
-[Teleport access from the portal](guides/portal-access.md)) need a
-management identity obtained by signing in (`tsh login --out`), because
-Teleport never lets a `tctl auth sign` identity impersonate. The portal
+[Teleport access from the portal](guides/portal-access.md)) need the
+cluster's [access identity](reference/tangra-access-role.md), a
+`tsh login --out` identity of `tangra-access`, because Teleport never lets
+a `tctl auth sign` identity impersonate. It is renewed by signing in again
+and uploading it (the platform warns before it expires). The portal
 relies on the MFA of your sign-in and does not yet ask for a fresh second
 factor at issuance. Terminals live in the module instance that opened them:
 several replicas need sticky routing, and a restart ends open terminals.
