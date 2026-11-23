@@ -71,13 +71,19 @@ const (
 	// separate from AuditRead because a recording shows everything that was
 	// on the terminal. Human-only (not in moduleAllowed or workerAllowed).
 	SessionsPlay = "sessions:play"
+	// AccessTerminal opens an SSH terminal in the portal as the caller's
+	// provisioned Teleport user; AccessDownload downloads a short-lived
+	// identity file for tsh (spec 004 R13). Human-only (not in
+	// moduleAllowed or workerAllowed).
+	AccessTerminal = "access:terminal"
+	AccessDownload = "access:download"
 )
 
 // Permissions lists every module permission.
 var Permissions = []string{
 	ClustersRead, ClustersManage, UsersRead, UsersManage, RolesRead, RolesManage, LocksRead, LocksManage,
 	TokensManage, ResourcesRead, ResourcesLink, ResourcesEnroll, AuditRead, AlertsRead, AlertsManage, ProvisioningManage, DeploymentsManage,
-	SessionsPlay,
+	SessionsPlay, AccessTerminal, AccessDownload,
 }
 
 // moduleAllowed is what a mesh peer may do (contracts/grpc.md: Access is read-only).
@@ -100,6 +106,9 @@ type Subjects struct {
 	Roles      []string
 	ActorKind  string // user | module | worker | system
 	PeerSPIFFE string // the verified SPIFFE ID of a module caller
+	// AMR is the authentication methods of a signed-in user's portal
+	// session, from the verified token only (spec 004 R3).
+	AMR []string
 }
 
 // User returns the subject of a signed-in user.
@@ -121,6 +130,18 @@ func Worker(tenantID, name string) Subjects {
 // System returns the trusted system subject for one tenant.
 func System(tenantID string) Subjects {
 	return Subjects{TenantID: tenantID, UserID: ActorSystem, ActorKind: ActorSystem}
+}
+
+// WithAMR returns s with a copy of the session's authentication methods.
+func (s Subjects) WithAMR(amr []string) Subjects {
+	s.AMR = slices.Clone(amr)
+	return s
+}
+
+// MFA reports whether a signed-in user's portal session was established
+// with a second factor: amr carries "otp" (TOTP) or "hwk" (security key).
+func (s Subjects) MFA() bool {
+	return s.IsHuman() && (slices.Contains(s.AMR, "otp") || slices.Contains(s.AMR, "hwk"))
 }
 
 // HasRole reports whether the caller carries role.

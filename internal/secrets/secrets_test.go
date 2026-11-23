@@ -365,3 +365,23 @@ func TestRouter(t *testing.T) {
 		t.Fatal("traversal through router")
 	}
 }
+
+func TestSecretWipe(t *testing.T) {
+	raw := []byte("key material")
+	s := NewSecret(raw)
+	inner := s.b
+	s.Wipe()
+	if !s.IsZero() || s.Len() != 0 || len(s.Reveal()) != 0 {
+		t.Fatal("not emptied")
+	}
+	for _, b := range inner {
+		if b != 0 {
+			t.Fatal("held copy not zeroed")
+		}
+	}
+	if string(raw) != "key material" {
+		t.Fatal("the caller's bytes are not the secret's")
+	}
+	var zero Secret
+	zero.Wipe()
+}

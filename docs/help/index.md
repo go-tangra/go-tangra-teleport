@@ -34,6 +34,9 @@ never shown again after you save it).
   bursts.
 - [Play recorded SSH sessions](guides/session-playback.md) — watch a
   session in the portal with `sessions:play`; every playback is audited.
+- [Teleport access from the portal](guides/portal-access.md) — a terminal
+  in the browser or an identity file for `tsh`, as your own provisioned
+  Teleport user; needs MFA, every issuance is audited.
 - [Provision tangra users](guides/provisioning.md) — map tangra roles or
   groups to Teleport roles, invite members, and de-provision leavers.
 - [Deploy a new cluster](guides/deploy-new-cluster.md) — the wizard for a

@@ -17,6 +17,7 @@ import { useClusters } from '@/stores/clusters'
 import { updateSchema } from '@/schemas'
 import type { Cluster } from '@/api/types'
 import RegisterClusterDialog from './RegisterClusterDialog.vue'
+import MyAccessCard from './MyAccessCard.vue'
 import UsersTab from './tabs/UsersTab.vue'
 import RolesTab from './tabs/RolesTab.vue'
 import LocksTab from './tabs/LocksTab.vue'
@@ -179,6 +180,7 @@ const severity = computed(() => {
       <UiCard title="Details">
         <UiKeyValueTable :items="details" :columns="2" />
       </UiCard>
+      <MyAccessCard :cluster="cluster" />
       <UiCard title="Missing permissions" subtitle="Read grants of the tangra-manager role this identity lacks">
         <p v-if="cluster.missing_permissions.length === 0" class="text-sm" data-test="cluster-permissions-ok">None — the identity can read everything the module needs.</p>
         <div v-else class="flex flex-wrap gap-2" data-test="cluster-permissions-missing">

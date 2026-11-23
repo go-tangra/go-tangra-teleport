@@ -27,6 +27,7 @@ var contractPermissions = []string{
 	"clusters:read", "clusters:manage", "users:read", "users:manage", "roles:read", "roles:manage",
 	"locks:read", "locks:manage", "tokens:manage", "resources:read", "resources:link", "resources:enroll", "audit:read",
 	"alerts:read", "alerts:manage", "provisioning:manage", "deployments:manage", "sessions:play",
+	"access:terminal", "access:download",
 }
 
 func TestPermissionsMatchContract(t *testing.T) {
@@ -106,8 +107,9 @@ func TestActorKinds(t *testing.T) {
 	if w.IsHuman() || w.ActorID() != "provisioning-sync" || w.ActorKind != ActorWorker {
 		t.Fatalf("worker %+v", w)
 	}
-	// Spec 003 R13: watching a recording is human-only.
-	for _, p := range []string{RolesManage, DeploymentsManage, TokensManage, SessionsPlay} {
+	// Spec 003 R13: watching a recording is human-only; spec 004 R13:
+	// brokered Teleport access is human-only.
+	for _, p := range []string{RolesManage, DeploymentsManage, TokensManage, SessionsPlay, AccessTerminal, AccessDownload} {
 		if Allowed(ctx, nil, w, p) {
 			t.Errorf("worker allowed %s", p)
 		}
@@ -129,6 +131,32 @@ func TestActorKinds(t *testing.T) {
 	}
 	if (Subjects{ActorKind: ActorWorker}).ActorID() != ActorWorker {
 		t.Fatal("ActorID fallback")
+	}
+}
+
+// Spec 004 R3: MFA is the session's amr carrying otp or hwk, from the
+// verified token only.
+func TestMFA(t *testing.T) {
+	for _, c := range []struct {
+		amr  []string
+		want bool
+	}{
+		{nil, false}, {[]string{"pwd"}, false}, {[]string{"pwd", "otp"}, true}, {[]string{"hwk"}, true},
+		{[]string{"OTP"}, false}, {[]string{"mfa"}, false}, {[]string{""}, false},
+	} {
+		s := User(tn, "alice", nil).WithAMR(c.amr)
+		if s.MFA() != c.want {
+			t.Errorf("amr %v: MFA %v", c.amr, s.MFA())
+		}
+	}
+	amr := []string{"otp"}
+	s := User(tn, "alice", nil).WithAMR(amr)
+	amr[0] = "pwd"
+	if !s.MFA() {
+		t.Fatal("WithAMR must copy")
+	}
+	if Module(tn, inv).WithAMR([]string{"otp"}).MFA() || Worker(tn, "w").WithAMR([]string{"otp"}).MFA() {
+		t.Fatal("only a signed-in user has an MFA session")
 	}
 }
 

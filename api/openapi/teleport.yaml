@@ -51,6 +51,13 @@ components:
       in: query
       required: false
       schema: { type: string, maxLength: 1024 }
+    # Portal terminal ids (spec 004): 128 random bits, hex.
+    tid:
+      name: tid
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-f0-9]{32}$' }
+      example: 0123456789abcdef0123456789abcdef
     # Teleport object names (users, roles, locks): letters, digits and . _ @ + - :
     name:
       name: name
@@ -91,6 +98,15 @@ components:
         - playback_expired
         - recording_too_large
         - not_playable
+        # spec 004: brokered access
+        - mfa_required
+        - not_provisioned
+        - user_locked
+        - session_mfa_required
+        - management_role_outdated
+        - management_identity_unsuitable
+        - too_many
+        - terminal_ended
     Error:
       type: object
       required: [reason]
@@ -803,6 +819,81 @@ components:
       required: [items]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/Draft' } }
+    # ---- Brokered access (spec 004)
+    AccessSettings:
+      type: object
+      required: [access_ttl_minutes]
+      properties:
+        access_ttl_minutes: { type: integer, minimum: 15, maximum: 720, description: 'lifetime of issued access (default 480); Teleport may shorten it' }
+        updated_at: { type: string, format: date-time }
+        updated_by: { type: string, maxLength: 256 }
+    MyAccess:
+      description: >-
+        The caller's provisioned Teleport identity on this cluster. The
+        Teleport user is the one provisioning created for the caller; it is
+        never chosen by a request.
+      type: object
+      required: [teleport_user, roles, logins, mfa, can_terminal, can_download, proxy_addr, cluster_name, settings]
+      properties:
+        teleport_user: { type: string, maxLength: 128 }
+        roles: { type: array, items: { type: string, maxLength: 128 } }
+        logins: { type: array, items: { type: string, maxLength: 64 } }
+        mfa: { type: boolean, description: 'the portal session was established with MFA (required for any issuance)' }
+        can_terminal: { type: boolean }
+        can_download: { type: boolean }
+        proxy_addr: { type: string, maxLength: 300 }
+        cluster_name: { type: string, maxLength: 253 }
+        settings: { $ref: '#/components/schemas/AccessSettings' }
+    AccessNode:
+      type: object
+      required: [name, hostname, labels, logins]
+      properties:
+        name: { type: string, maxLength: 128, description: 'the node id (target of a terminal)' }
+        hostname: { type: string, maxLength: 255 }
+        labels: { type: object, additionalProperties: { type: string } }
+        logins: { type: array, items: { type: string, maxLength: 64 }, description: 'logins the caller may use (Teleport still decides per node)' }
+    AccessNodePage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, maxItems: 1000, items: { $ref: '#/components/schemas/AccessNode' } }
+    IdentityRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        ttl_minutes: { type: integer, minimum: 15, maximum: 720, description: 'at most the cluster setting (clamped)' }
+    TerminalCreate:
+      type: object
+      additionalProperties: false
+      required: [node, login, cols, rows]
+      properties:
+        node: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' }
+        login: { type: string, pattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$' }
+        cols: { type: integer, minimum: 1, maximum: 1000 }
+        rows: { type: integer, minimum: 1, maximum: 1000 }
+    Terminal:
+      type: object
+      required: [terminal_id, node, login, teleport_user, started_at, expires_at]
+      properties:
+        terminal_id: { type: string, pattern: '^[a-f0-9]{32}$' }
+        node: { type: string, maxLength: 128 }
+        login: { type: string, maxLength: 64 }
+        teleport_user: { type: string, maxLength: 128 }
+        started_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time, description: 'the terminal ends at the latest then (certificate expiry or the 8 h maximum)' }
+    TerminalInput:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { type: string, minLength: 1, maxLength: 87384, contentEncoding: base64, description: 'keystrokes, base64 (at most 64 KiB decoded)' }
+    TerminalSize:
+      type: object
+      additionalProperties: false
+      required: [cols, rows]
+      properties:
+        cols: { type: integer, minimum: 1, maximum: 1000 }
+        rows: { type: integer, minimum: 1, maximum: 1000 }
   responses:
     Error:
       description: refusal with a stable reason
@@ -1492,4 +1583,183 @@ paths:
       parameters: [{ $ref: '#/components/parameters/csrf' }]
       responses:
         '200': { description: the draft with its checks, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  # ---- Brokered access (spec 004)
+  /api/teleport/v1/clusters/{id}/access:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: getMyTeleportAccess
+      description: >-
+        The caller's own provisioned Teleport identity on the cluster, its
+        roles and logins, whether the portal session used MFA, and the
+        cluster's access settings. Issues nothing. Refusals: 403 forbidden;
+        404 not_found; 409 not_provisioned (no active managed user for the
+        caller, or its Teleport user is missing or not labelled for the
+        caller) or user_locked; 502 cluster_unreachable.
+      x-freya-permission: 'access:terminal'
+      responses:
+        '200': { description: my access, content: { application/json: { schema: { $ref: '#/components/schemas/MyAccess' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/access/nodes:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: listMyTeleportNodes
+      description: >-
+        SSH nodes the caller's provisioned Teleport user may see, listed by
+        Teleport itself with a five-minute certificate that never leaves the
+        module (Teleport RBAC decides), with the logins the user may use.
+        Same refusals as GET access, plus 403 mfa_required, 422
+        session_mfa_required and management_role_outdated.
+      x-freya-permission: 'access:terminal'
+      responses:
+        '200': { description: reachable nodes, content: { application/json: { schema: { $ref: '#/components/schemas/AccessNodePage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/access/identity:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: downloadMyTeleportIdentity
+      description: >-
+        A short-lived identity file for `tsh -i` as the caller's provisioned
+        Teleport user, issued by Teleport (impersonation by the management
+        identity) and never stored. Each request issues a new one and records
+        one teleport.access.issued audit entry. Refusals: 403 forbidden or
+        mfa_required (the portal session did not use MFA); 404 not_found;
+        409 not_provisioned or user_locked; 422 validation_failed,
+        session_mfa_required (a role needs Teleport's per-session MFA) or
+        management_role_outdated (the management role cannot impersonate
+        managed users: re-run the bootstrap) or management_identity_unsuitable
+        (the registered identity is a tctl auth sign identity, which Teleport
+        never lets impersonate: register a sign-in identity); 502
+        cluster_unreachable.
+      x-freya-permission: 'access:download'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/IdentityRequest' } } }
+      responses:
+        '200':
+          description: the identity file (attachment, never cached)
+          headers:
+            Content-Disposition: { schema: { type: string } }
+            X-Teleport-Expires: { description: certificate expiry (RFC 3339), schema: { type: string, format: date-time } }
+            X-Teleport-User: { schema: { type: string } }
+          content: { text/plain: { schema: { type: string } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/access/settings:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    put:
+      operationId: putTeleportAccessSettings
+      description: The cluster's brokered-access settings (lifetime 15 to 720 minutes; 422 validation_failed otherwise).
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [access_ttl_minutes]
+              properties:
+                access_ttl_minutes: { type: integer, minimum: 15, maximum: 720 }
+      responses:
+        '200': { description: saved, content: { application/json: { schema: { $ref: '#/components/schemas/AccessSettings' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/terminals:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    post:
+      operationId: openTeleportTerminal
+      description: >-
+        Opens an interactive SSH session to node as login through the
+        cluster proxy with certificates issued for the caller's provisioned
+        Teleport user (Teleport enforces the node and login and records the
+        session under that user). Read the output with GET output (SSE) and
+        send keystrokes with POST input. The terminal ends when deleted,
+        when no output reader is connected for 30 s, without a keepalive for
+        3 minutes, after 8 hours, when the certificate expires, when the
+        shell exits, or within a minute after the access is revoked.
+        Refusals as for the identity download, plus 422 teleport_rejected
+        (Teleport refused the node or login), 429 too_many (5 terminals per
+        user, 64 per module instance).
+      x-freya-permission: 'access:terminal'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TerminalCreate' } } }
+      responses:
+        '201': { description: opened, content: { application/json: { schema: { $ref: '#/components/schemas/Terminal' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/terminals/{tid}:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { $ref: '#/components/parameters/tid' }
+    delete:
+      operationId: closeTeleportTerminal
+      description: Ends the terminal (404 not_found for an unknown terminal or another user's).
+      x-freya-permission: 'access:terminal'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: closed }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/terminals/{tid}/output:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { $ref: '#/components/parameters/tid' }
+    get:
+      operationId: streamTeleportTerminalOutput
+      description: >-
+        SSE stream of the terminal's output: `event: output` with id = the
+        byte offset after the chunk and data = base64 output; `event: end`
+        with data {"reason"} when the terminal ends; `event: bye` when the
+        module closes the stream (290 s). Resume with Last-Event-ID or
+        from=<offset>; the module keeps the last 256 KiB.
+      x-freya-permission: 'access:terminal'
+      x-freya-timeout-seconds: 300
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 9007199254740991 } }
+      responses:
+        '200': { description: SSE stream of terminal output, content: { text/event-stream: { schema: { type: string } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/terminals/{tid}/input:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { $ref: '#/components/parameters/tid' }
+    post:
+      operationId: sendTeleportTerminalInput
+      description: Keystrokes for the terminal (base64, at most 64 KiB decoded; 409 terminal_ended once it ended).
+      x-freya-permission: 'access:terminal'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TerminalInput' } } }
+      responses:
+        '204': { description: sent }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/terminals/{tid}/resize:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { $ref: '#/components/parameters/tid' }
+    post:
+      operationId: resizeTeleportTerminal
+      x-freya-permission: 'access:terminal'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TerminalSize' } } }
+      responses:
+        '204': { description: resized }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/terminals/{tid}/keepalive:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { $ref: '#/components/parameters/tid' }
+    post:
+      operationId: keepTeleportTerminalAlive
+      description: >-
+        Proves the portal session is still signed in (the page sends one
+        every minute); a terminal without one for 3 minutes ends.
+      x-freya-permission: 'access:terminal'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: kept alive }
         default: { $ref: '#/components/responses/Error' }

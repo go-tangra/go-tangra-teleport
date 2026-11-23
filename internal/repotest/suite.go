@@ -38,6 +38,7 @@ func Run(t *testing.T, newStore Factory) {
 		"alert state":   testAlertState,
 		"drafts":        testDrafts,
 		"enrollments":   testEnrollments,
+		"access":        testAccessSettings,
 		"cascade":       testCascade,
 		"audit":         testAudit,
 		"audit list":    testAuditList,
@@ -417,6 +418,41 @@ func testAlertRules(t *testing.T, s repo.Store) {
 	}
 	must(t, s.DeleteAlertRule(ctx, TenantA, r.ID))
 	wantErr(t, s.DeleteAlertRule(ctx, TenantA, r.ID), repo.ErrNotFound)
+}
+
+// Spec 004 R4: per-cluster access settings, defaulted when never saved,
+// tenant-scoped, cascading with the cluster.
+func testAccessSettings(t *testing.T, s repo.Store) {
+	c := NewCluster(TenantA, "c")
+	must(t, s.CreateCluster(ctx, c))
+	got, err := s.GetAccessSettings(ctx, TenantA, c.ID)
+	must(t, err)
+	if got.AccessTTLMinutes != repo.DefaultAccessTTLMinutes || got.ClusterID != c.ID || got.TenantID != TenantA || !got.UpdatedAt.IsZero() {
+		t.Fatalf("default = %+v", got)
+	}
+	now := base()
+	must(t, s.PutAccessSettings(ctx, repo.AccessSettings{ClusterID: c.ID, TenantID: TenantA, AccessTTLMinutes: 60, UpdatedAt: now, UpdatedBy: "alice"}))
+	must(t, s.PutAccessSettings(ctx, repo.AccessSettings{ClusterID: c.ID, TenantID: TenantA, AccessTTLMinutes: 90, UpdatedAt: now, UpdatedBy: "bob"}))
+	got, err = s.GetAccessSettings(ctx, TenantA, c.ID)
+	must(t, err)
+	if got.AccessTTLMinutes != 90 || got.UpdatedBy != "bob" || !got.UpdatedAt.Equal(now) {
+		t.Fatalf("saved = %+v", got)
+	}
+	// Another tenant neither reads nor writes them.
+	if b, err := s.GetAccessSettings(ctx, TenantB, c.ID); err == nil && b.AccessTTLMinutes != repo.DefaultAccessTTLMinutes {
+		t.Fatalf("tenant B read %+v", b)
+	}
+	wantErr(t, s.PutAccessSettings(ctx, repo.AccessSettings{ClusterID: c.ID, TenantID: TenantB, AccessTTLMinutes: 15, UpdatedAt: now}), repo.ErrNotFound)
+	wantErr(t, s.PutAccessSettings(ctx, repo.AccessSettings{ClusterID: store.NewID(), TenantID: TenantA, AccessTTLMinutes: 15, UpdatedAt: now}), repo.ErrNotFound)
+	if got, _ := s.GetAccessSettings(ctx, TenantA, c.ID); got.AccessTTLMinutes != 90 {
+		t.Fatalf("overwritten by another tenant: %+v", got)
+	}
+	must(t, s.DeleteCluster(ctx, TenantA, c.ID))
+	c2 := c
+	must(t, s.CreateCluster(ctx, c2))
+	if got, _ := s.GetAccessSettings(ctx, TenantA, c.ID); got.AccessTTLMinutes != repo.DefaultAccessTTLMinutes {
+		t.Fatalf("settings survived the cluster: %+v", got)
+	}
 }
 
 func testAlertState(t *testing.T, s repo.Store) {

@@ -38,6 +38,15 @@ have it. On the cluster you need `tctl` with administrator rights.
    tctl auth sign --user=tangra-mgmt --format=file --ttl=720h --out=tangra-mgmt.identity
    ```
 
+   To also offer [terminals and tsh downloads in the portal](guides/portal-access.md),
+   export the identity by signing in as `tangra-mgmt` instead (finish its
+   sign-up link with a password and a second factor first): Teleport never
+   lets a `tctl auth sign` identity impersonate the provisioned users.
+
+   ```bash
+   tsh login --proxy=teleport.example.com:443 --user=tangra-mgmt --format=file --out=tangra-mgmt.identity
+   ```
+
 ## 2. Register the cluster
 
 Open **Teleport → Clusters**, choose **Register cluster** and fill in:

@@ -32,14 +32,16 @@ member → viewer).
 | `alerts:manage` | Create, edit and delete alert rules |
 | `provisioning:manage` | Manage role mappings and provision or de-provision tangra users |
 | `deployments:manage` | Use the deployment wizard: drafts, artifacts and checks |
+| `access:terminal` | See your own Teleport access on a cluster, list the nodes you can reach and open terminals in the portal as your provisioned Teleport user (needs an MFA portal session) |
+| `access:download` | Download a short-lived identity file for `tsh` as your provisioned Teleport user (needs an MFA portal session) |
 | `sessions:play` | Play recorded SSH sessions in the portal. A recording shows everything that was on the terminal, so this is separate from `audit:read`, which only lists sessions; every playback is audited |
 
 ## Module roles
 
 | Role | Permissions |
 |---|---|
-| Administrator | Every permission above, including `sessions:play` (the only role that holds it) |
-| Operator | Every `:read` permission, plus `tokens:manage`, `locks:manage`, `resources:link` and `resources:enroll` |
+| Administrator | Every permission above, including `sessions:play` and `access:download` (the only role that holds them) |
+| Operator | Every `:read` permission, plus `tokens:manage`, `locks:manage`, `resources:link`, `resources:enroll` and `access:terminal` |
 | Auditor | Every `:read` permission, including `audit:read` |
 | Viewer | Every `:read` permission except `audit:read` |
 

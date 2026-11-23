@@ -389,3 +389,32 @@ func TestBuildWiresRecording(t *testing.T) {
 		t.Fatalf("recording route: %d %s", w.Code, w.Body)
 	}
 }
+
+// Spec 004: brokered access is wired, its routes mounted, and the terminal
+// hub runs as a worker that ends every terminal on shutdown.
+func TestBuildWiresBrokeredAccess(t *testing.T) {
+	o := options(secrets.NewFake(), nil)
+	o.Checker = authz.Static{"u1": authz.Permissions}
+	a, err := Build(context.Background(), testConfig(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if a.Access == nil || a.Terminals == nil || a.Terminals.Access != a.Access || a.Access.Clusters != a.Clusters {
+		t.Fatalf("access %+v terminals %+v", a.Access, a.Terminals)
+	}
+	worker := false
+	for _, w := range a.Workers() {
+		worker = worker || w.Name == "terminals"
+	}
+	if !worker {
+		t.Fatalf("no terminals worker: %+v", a.Workers())
+	}
+	r := httptest.NewRequest("GET", "https://localhost/api/teleport/v1/clusters/018f3a2b-0000-7000-8000-0000000000ff/access", nil)
+	r.Header.Set("Authorization", "Bearer viewer")
+	w := httptest.NewRecorder()
+	a.HTTP.Handler().ServeHTTP(w, r)
+	if w.Code == 501 || w.Code == 405 {
+		t.Fatalf("access route: %d %s", w.Code, w.Body)
+	}
+}

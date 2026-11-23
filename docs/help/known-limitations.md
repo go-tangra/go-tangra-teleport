@@ -72,6 +72,18 @@ cannot be watched live. Several replicas of the module do not share
 playbacks: if a page goes to another replica the player starts the
 playback again.
 
+### Brokered access
+
+Terminals in the portal and identity downloads for `tsh` (see
+[Teleport access from the portal](guides/portal-access.md)) need a
+management identity obtained by signing in (`tsh login --out`), because
+Teleport never lets a `tctl auth sign` identity impersonate. The portal
+relies on the MFA of your sign-in and does not yet ask for a fresh second
+factor at issuance. Terminals live in the module instance that opened them:
+several replicas need sticky routing, and a restart ends open terminals.
+Roles that require Teleport's per-session MFA cannot be used from the
+portal.
+
 ### Smaller limits
 
 - **Alert recipients** are tangra user ids typed as text. Channel ids are
