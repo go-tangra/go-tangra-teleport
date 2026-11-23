@@ -74,6 +74,7 @@ func (s *Server) Register(d Deps) {
 	}
 	if d.Clusters != nil {
 		s.registerClusters(d.Clusters)
+		s.registerAccessIdentity(d.Clusters)
 	}
 	if d.Users != nil {
 		s.registerUsers(d.Users)

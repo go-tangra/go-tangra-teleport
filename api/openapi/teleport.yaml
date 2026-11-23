@@ -103,10 +103,14 @@ components:
         - not_provisioned
         - user_locked
         - session_mfa_required
-        - management_role_outdated
-        - management_identity_unsuitable
         - too_many
         - terminal_ended
+        # spec 005: the access identity
+        - access_identity_missing
+        - access_identity_expired
+        - access_identity_invalid
+        - access_identity_not_sign_in
+        - access_identity_cannot_impersonate
     Error:
       type: object
       required: [reason]
@@ -198,6 +202,30 @@ components:
       properties:
         credential_kind: { type: string, enum: [identity_file] }
         credential: { $ref: '#/components/schemas/IdentityFile' }
+    AccessIdentityUpload:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential: { $ref: '#/components/schemas/IdentityFile' }
+    AccessIdentity:
+      description: >-
+        The cluster's access identity (spec 005): a sign-in identity of the
+        Teleport user tangra-access that brokered access issues certificates
+        with. Never the identity itself or its reference.
+      type: object
+      required: [configured, state]
+      properties:
+        configured: { type: boolean }
+        teleport_user: { type: string, maxLength: 256 }
+        issued_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        state: { type: string, enum: [missing, ok, expiring, expired] }
+        updated_at: { type: string, format: date-time }
+        updated_by: { type: string, maxLength: 256 }
+        impersonation_checked:
+          type: boolean
+          description: 'upload only: a managed user existed and Teleport issued 1-minute certificates for it with the identity'
     UpdateCluster:
       type: object
       additionalProperties: false
@@ -844,6 +872,10 @@ components:
         proxy_addr: { type: string, maxLength: 300 }
         cluster_name: { type: string, maxLength: 253 }
         settings: { $ref: '#/components/schemas/AccessSettings' }
+        access_identity:
+          type: string
+          enum: [missing, ok, expiring, expired]
+          description: "the cluster's access identity (spec 005); missing works only when the management identity is itself a sign-in identity"
     AccessNode:
       type: object
       required: [name, hostname, labels, logins]
@@ -995,6 +1027,50 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/RotateCredential' } } }
       responses:
         '200': { description: rotated, content: { application/json: { schema: { $ref: '#/components/schemas/Cluster' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/access-identity:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: getClusterAccessIdentity
+      description: >-
+        The access identity's status (spec 005): whether one is configured,
+        its Teleport user, expiry and state (ok, expiring within the
+        management credential's thresholds, expired). Never the identity.
+      x-freya-permission: 'clusters:read'
+      responses:
+        '200': { description: status, content: { application/json: { schema: { $ref: '#/components/schemas/AccessIdentity' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    put:
+      operationId: putClusterAccessIdentity
+      description: >-
+        Uploads or replaces the access identity: a `tsh login --out`
+        identity file of the Teleport user tangra-access. It must parse and
+        be unexpired (422 validation_failed, credential_invalid), be a
+        sign-in identity (422 access_identity_not_sign_in for a tctl auth
+        sign identity), sign in to the registered cluster (422
+        validation_failed, field credential; 502 cluster_unreachable) and,
+        when a managed user exists, get 1-minute certificates for it (422
+        access_identity_cannot_impersonate). Only then is it stored in the
+        secret store (503 dependency_unavailable) and the previous one
+        deleted. Audited as teleport.access_identity.upload or replace.
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AccessIdentityUpload' } } }
+      responses:
+        '200': { description: stored, content: { application/json: { schema: { $ref: '#/components/schemas/AccessIdentity' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteClusterAccessIdentity
+      description: >-
+        Removes the access identity and its secret (404 not_found when none).
+        Terminals already open keep running until their certificates expire.
+        Audited as teleport.access_identity.delete.
+      x-freya-permission: 'clusters:manage'
+      parameters: [{ $ref: '#/components/parameters/csrf' }]
+      responses:
+        '204': { description: removed }
         default: { $ref: '#/components/responses/Error' }
   /api/teleport/v1/clusters/{id}/check:
     parameters: [{ $ref: '#/components/parameters/id' }]
@@ -1609,7 +1685,8 @@ paths:
         Teleport itself with a five-minute certificate that never leaves the
         module (Teleport RBAC decides), with the logins the user may use.
         Same refusals as GET access, plus 403 mfa_required, 422
-        session_mfa_required and management_role_outdated.
+        session_mfa_required and the access identity refusals of the
+        identity download.
       x-freya-permission: 'access:terminal'
       responses:
         '200': { description: reachable nodes, content: { application/json: { schema: { $ref: '#/components/schemas/AccessNodePage' } } } }
@@ -1620,17 +1697,17 @@ paths:
       operationId: downloadMyTeleportIdentity
       description: >-
         A short-lived identity file for `tsh -i` as the caller's provisioned
-        Teleport user, issued by Teleport (impersonation by the management
-        identity) and never stored. Each request issues a new one and records
+        Teleport user, issued by Teleport (impersonation by the cluster's
+        access identity, or by the management identity when none is
+        configured) and never stored. Each request issues a new one and records
         one teleport.access.issued audit entry. Refusals: 403 forbidden or
         mfa_required (the portal session did not use MFA); 404 not_found;
         409 not_provisioned or user_locked; 422 validation_failed,
-        session_mfa_required (a role needs Teleport's per-session MFA) or
-        management_role_outdated (the management role cannot impersonate
-        managed users: re-run the bootstrap) or management_identity_unsuitable
-        (the registered identity is a tctl auth sign identity, which Teleport
-        never lets impersonate: register a sign-in identity); 502
-        cluster_unreachable.
+        session_mfa_required (a role needs Teleport's per-session MFA),
+        access_identity_missing (no access identity, and the management
+        identity cannot impersonate), access_identity_expired or
+        access_identity_invalid (Teleport rejected it or refused its
+        impersonation); 502 cluster_unreachable.
       x-freya-permission: 'access:download'
       parameters: [{ $ref: '#/components/parameters/csrf' }]
       requestBody:

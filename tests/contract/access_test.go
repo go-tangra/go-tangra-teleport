@@ -168,7 +168,7 @@ func TestAccessRoutes(t *testing.T) {
 	do("POST", base+"/identity", "alice", nil, 200, "")
 
 	e.Teleport.ImpersonationDenied = true
-	do("POST", base+"/identity", "alice", nil, 422, "management_role_outdated")
+	do("POST", base+"/identity", "alice", nil, 422, "access_identity_missing")
 	e.Teleport.ImpersonationDenied = false
 	e.Teleport.ClusterSessionMFA = true
 	do("POST", base+"/identity", "alice", nil, 422, "session_mfa_required")

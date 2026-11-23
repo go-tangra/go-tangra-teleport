@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/access"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/authz"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/clusters"
 	ct "github.com/go-tangra/go-tangra-teleport/v4/internal/clusters/clusterstest"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/repo"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/store"
@@ -190,14 +191,15 @@ func TestMFARequired(t *testing.T) {
 	}
 }
 
-// R1 / FR-019: Teleport refusing the impersonation is reported as the
-// role update needed; R9 / FR-014: per-session MFA roles are not usable.
+// Spec 005 R5: without an access identity Teleport refusing the
+// management identity's impersonation means the access identity is
+// missing; R9 / FR-014: per-session MFA roles are not usable.
 func TestIssueRefusals(t *testing.T) {
 	e := newEnv(t)
 	e.Teleport.ImpersonationDenied = true
-	if _, err := e.svc.Download(mfa(ct.TenantA, alice), e.cluster, 0); !errors.Is(err, access.ErrRoleOutdated) ||
-		access.Reason(err) != "management_role_outdated" {
-		t.Fatalf("outdated role: %v", err)
+	if _, err := e.svc.Download(mfa(ct.TenantA, alice), e.cluster, 0); !errors.Is(err, access.ErrAccessIdentityMissing) ||
+		access.Reason(err) != "access_identity_missing" {
+		t.Fatalf("no access identity: %v", err)
 	}
 	e.Teleport.ImpersonationDenied = false
 
@@ -268,5 +270,75 @@ func TestLifetime(t *testing.T) {
 	// Settings need clusters:manage.
 	if _, err := e.svc.PutSettings(ctx, e.cluster, 60); !errors.Is(err, authz.ErrForbidden) {
 		t.Fatalf("settings as alice: %v", err)
+	}
+}
+
+// withAccessIdentity stores a sign-in identity of tangra-access valid for
+// lifetime on the env's cluster.
+func (e *env) withAccessIdentity(t *testing.T, lifetime time.Duration) {
+	t.Helper()
+	if _, err := e.Service.PutAccessIdentity(mfa(ct.TenantA, ct.Admin), e.cluster,
+		clusters.AccessIdentityInput{Credential: clusters.NewCredential([]byte(e.AccessIdentity(t, lifetime, "")))}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Spec 005 FR-005: with an access identity every issuance (download, node
+// listing, terminal) goes through it, while the reads stay on the
+// management identity (which can no longer impersonate).
+func TestIssueUsesTheAccessIdentity(t *testing.T) {
+	e := newEnv(t)
+	e.withAccessIdentity(t, 30*24*time.Hour)
+	e.Teleport.ImpersonationDenied = true // the management role has no impersonate rule
+	before := len(e.Teleport.IssuedCerts())
+	ctx := mfa(ct.TenantA, alice)
+	if _, err := e.svc.Download(ctx, e.cluster, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Nodes(ctx, e.cluster); err != nil {
+		t.Fatal(err)
+	}
+	got := e.Teleport.IssuedCerts()[before:]
+	if len(got) != 2 || !got[0].Access || !got[1].Access || got[0].User != "tangra-alice" {
+		t.Fatalf("issued %+v", got)
+	}
+	my, err := e.svc.Mine(ctx, e.cluster)
+	if err != nil || my.AccessIdentity != clusters.AccessStateOK {
+		t.Fatalf("my access %+v %v", my, err)
+	}
+}
+
+// Spec 005 R5: an expired access identity and one Teleport rejects have
+// their own reasons; neither falls back to the management identity.
+func TestIssueAccessIdentityRefusals(t *testing.T) {
+	e := newEnv(t)
+	e.withAccessIdentity(t, 2*time.Hour)
+	before := len(e.Teleport.IssuedCerts()) // the upload's dry issuance
+	ctx := mfa(ct.TenantA, alice)
+	e.Teleport.AccessImpersonationDenied = true
+	if _, err := e.svc.Download(ctx, e.cluster, 0); !errors.Is(err, access.ErrAccessIdentityInvalid) ||
+		access.Reason(err) != "access_identity_invalid" {
+		t.Fatalf("rejected access identity: %v", err)
+	}
+	e.Teleport.AccessImpersonationDenied = false
+	e.Teleport.FailNext("IssueUserCerts", teleportapi.ErrCredentialInvalid)
+	if _, err := e.svc.Download(ctx, e.cluster, 0); !errors.Is(err, access.ErrAccessIdentityInvalid) {
+		t.Fatalf("access identity credential rejected: %v", err)
+	}
+	e.Advance(3 * time.Hour)
+	if _, err := e.svc.Download(ctx, e.cluster, 0); !errors.Is(err, access.ErrAccessIdentityExpired) ||
+		access.Reason(err) != "access_identity_expired" {
+		t.Fatalf("expired access identity: %v", err)
+	}
+	if my, err := e.svc.Mine(ctx, e.cluster); err != nil || my.AccessIdentity != clusters.AccessStateExpired {
+		t.Fatalf("my access %+v %v", my, err)
+	}
+	if n := len(e.Teleport.IssuedCerts()) - before; n != 0 {
+		t.Fatalf("issued %d", n)
+	}
+	// Without one, GET access says missing.
+	e2 := newEnv(t)
+	if my, err := e2.svc.Mine(ctx, e2.cluster); err != nil || my.AccessIdentity != clusters.AccessStateMissing {
+		t.Fatalf("my access %+v %v", my, err)
 	}
 }
