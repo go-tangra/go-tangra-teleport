@@ -126,10 +126,14 @@ func TestAccessIdentityTeleport(t *testing.T) {
 	var out strings.Builder
 	var from int64
 	deadline := time.After(30 * time.Second)
-	for !strings.Contains(out.String(), "ACCESS-42-ID") {
+	for {
 		c, changed := term.Read(from)
 		out.Write(c.Data)
 		from = c.Next
+		// The command line echoes the expression; only its result has 42.
+		if strings.Contains(out.String(), "ACCESS-42-ID") {
+			break
+		}
 		if c.Ended {
 			t.Fatalf("terminal ended (%s): %q", c.Reason, out.String())
 		}
