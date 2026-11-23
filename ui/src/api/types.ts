@@ -470,6 +470,24 @@ export interface MyAccess {
   proxy_addr: string
   cluster_name: string
   settings: AccessSettings
+  /** The cluster's access identity (spec 005): what issuance will use. */
+  access_identity: AccessIdentityState
+}
+
+/** State of a cluster's access identity (spec 005). */
+export type AccessIdentityState = 'missing' | 'ok' | 'expiring' | 'expired'
+
+/** GET/PUT /clusters/{id}/access-identity; never the identity itself. */
+export interface AccessIdentity {
+  configured: boolean
+  teleport_user?: string | undefined
+  issued_at?: string | undefined
+  expires_at?: string | undefined
+  state: AccessIdentityState
+  updated_at?: string | undefined
+  updated_by?: string | undefined
+  /** On upload: whether a dry issuance for a provisioned user was tried. */
+  impersonation_checked?: boolean | undefined
 }
 
 export interface AccessNode {

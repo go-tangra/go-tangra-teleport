@@ -9,6 +9,7 @@ const cluster = { id: 'c1', proxy_addr: 'tp.example.com:443', cluster_name: 'pro
 const mine: MyAccess = {
   teleport_user: 'tangra-alice', roles: ['access'], logins: ['deploy'], mfa: true, can_terminal: true, can_download: true,
   proxy_addr: 'tp.example.com:443', cluster_name: 'prod.example.com', settings: { access_ttl_minutes: 480 },
+  access_identity: 'ok',
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -42,6 +43,23 @@ describe('MyAccessCard', () => {
     await flushPromises()
     expect(w.find('[data-test="my-access-not-provisioned"]').exists()).toBe(true)
     expect(w.find('[data-test="my-access-download"]').exists()).toBe(false)
+  })
+
+  it('explains a missing or expired access identity (spec 005)', async () => {
+    vi.spyOn(accessApi, 'mine').mockResolvedValue({ ...mine, access_identity: 'missing' })
+    let w = mount(MyAccessCard, { props: { cluster } })
+    await flushPromises()
+    expect(w.find('[data-test="my-access-identity-missing"]').text()).toMatch(/no access identity/)
+    expect(w.find('[data-test="my-access-identity-expired"]').exists()).toBe(false)
+    vi.spyOn(accessApi, 'mine').mockResolvedValue({ ...mine, access_identity: 'expired' })
+    w = mount(MyAccessCard, { props: { cluster } })
+    await flushPromises()
+    expect(w.find('[data-test="my-access-identity-expired"]').text()).toMatch(/expired/)
+    vi.spyOn(accessApi, 'mine').mockResolvedValue(mine)
+    w = mount(MyAccessCard, { props: { cluster } })
+    await flushPromises()
+    expect(w.find('[data-test="my-access-identity-missing"]').exists()).toBe(false)
+    expect(w.find('[data-test="my-access-identity-expired"]').exists()).toBe(false)
   })
 
   it('saves the access lifetime', async () => {

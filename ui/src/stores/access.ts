@@ -1,5 +1,5 @@
 import { api, ApiError, BASE, csrfToken } from '@/api/client'
-import type { AccessNode, AccessSettings, IssuedIdentity, MyAccess, TerminalView } from '@/api/types'
+import type { AccessIdentity, AccessNode, AccessSettings, IssuedIdentity, MyAccess, TerminalView } from '@/api/types'
 
 // Brokered Teleport access (spec 004): the caller's own provisioned
 // Teleport user, never one a request names. Issuance needs an MFA portal
@@ -7,6 +7,11 @@ import type { AccessNode, AccessSettings, IssuedIdentity, MyAccess, TerminalView
 // kept anywhere in the page.
 const c = (id: string) => 'clusters/' + id
 const t = (id: string, tid: string) => c(id) + '/terminals/' + encodeURIComponent(tid)
+
+/** The documented tsh login that writes an access identity (spec 005). */
+export function accessLoginCommand(proxyAddr: string): string {
+  return `tsh login --proxy=${proxyAddr} --user=tangra-access --ttl=525600 --format=file --out=tangra-access.identity`
+}
 
 /** base64 of bytes (keystrokes). */
 export function toBase64(bytes: Uint8Array): string {
@@ -38,6 +43,12 @@ export const accessApi = {
   mine: (id: string) => api<MyAccess>('GET', c(id) + '/access'),
   nodes: (id: string) => api<{ items: AccessNode[] }>('GET', c(id) + '/access/nodes'),
   putSettings: (id: string, body: AccessSettings) => api<AccessSettings>('PUT', c(id) + '/access/settings', body),
+
+  // The cluster's access identity (spec 005): status, upload or replace
+  // (verified first; the file goes out once and is not kept), removal.
+  accessIdentity: (id: string) => api<AccessIdentity>('GET', c(id) + '/access-identity'),
+  putAccessIdentity: (id: string, credential: string) => api<AccessIdentity>('PUT', c(id) + '/access-identity', { credential }),
+  deleteAccessIdentity: (id: string) => api('DELETE', c(id) + '/access-identity'),
 
   /**
    * Issues an identity file and hands it to the browser as a download. The

@@ -27,8 +27,12 @@ registerReasons({
   not_provisioned: 'You have no Teleport user on this cluster. Ask an administrator to provision you.',
   user_locked: 'Your Teleport user on this cluster is locked.',
   session_mfa_required: "A role of your Teleport user requires Teleport's per-session MFA; use tsh login on this cluster.",
-  management_role_outdated: "The cluster's management role cannot impersonate managed users; an administrator must apply the current tangra-manager role.",
-  management_identity_unsuitable: "The cluster's management identity cannot impersonate (it was made with tctl auth sign); an administrator must register a sign-in identity.",
+  // Access identity (spec 005).
+  access_identity_missing: 'This cluster has no access identity for portal terminals. An administrator must upload one on the cluster page.',
+  access_identity_expired: "This cluster's access identity has expired. An administrator must sign in as tangra-access again and replace it.",
+  access_identity_invalid: "Teleport rejected this cluster's access identity. An administrator must check the tangra-access role and replace it.",
+  access_identity_not_sign_in: 'That identity was made with tctl auth sign, which Teleport never lets impersonate. Upload the file written by tsh login.',
+  access_identity_cannot_impersonate: 'Teleport refused certificates for a provisioned user with that identity: its user needs the tangra-access role.',
   too_many: 'Too many terminals are open. End one first.',
   terminal_ended: 'This terminal has ended.',
 })
