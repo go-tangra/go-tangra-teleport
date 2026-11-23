@@ -63,7 +63,8 @@ type UserCerts struct {
 	SSHCert []byte    // authorized_keys line
 	TLSCert []byte    // PEM
 	// TLSCAs (PEM) and SSHCAs (authorized_keys lines) are the cluster's
-	// host CA, as Teleport returned them with the certificates.
+	// host CA (read with GetClusterCACert and GetCertAuthorities: the CAs
+	// GenerateUserCerts returns are the user CA).
 	TLSCAs [][]byte
 	SSHCAs [][]byte
 
@@ -266,6 +267,8 @@ type Shell interface {
 type accessAPI interface {
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 }
 
 var _ accessAPI = (*tclient.Client)(nil)
@@ -309,7 +312,49 @@ func (r *real) IssueUserCerts(ctx context.Context, user string, ttl time.Duratio
 	if err != nil {
 		return nil, err
 	}
-	return certsOf(res, user, r.t.cluster, keyPEM)
+	c, err := certsOf(res, user, r.t.cluster, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+	// The CAs Teleport returns with user certificates are the user CA; the
+	// proxy and the nodes are verified against the host CA.
+	if c.TLSCAs, c.SSHCAs, err = r.hostCA(ctx); err != nil {
+		c.Drop()
+		return nil, err
+	}
+	return c, nil
+}
+
+// hostCA reads the cluster's host CA: its TLS certificates (PEM) and its
+// trusted SSH keys (authorized_keys lines). No secrets are loaded.
+func (r *real) hostCA(ctx context.Context) (tlsCAs, sshCAs [][]byte, err error) {
+	resp, err := r.a.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	for rest := resp.TLSCA; ; {
+		var b *pem.Block
+		if b, rest = pem.Decode(rest); b == nil {
+			break
+		}
+		tlsCAs = append(tlsCAs, pem.EncodeToMemory(b))
+	}
+	cas, err := r.a.GetCertAuthorities(ctx, types.HostCA, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, ca := range cas {
+		if ca.GetClusterName() != r.t.cluster {
+			continue
+		}
+		for _, kp := range ca.GetTrustedSSHKeyPairs() {
+			sshCAs = append(sshCAs, kp.PublicKey)
+		}
+	}
+	if len(tlsCAs) == 0 || len(sshCAs) == 0 {
+		return nil, nil, trace.NotFound("the cluster's host CA is not readable")
+	}
+	return tlsCAs, sshCAs, nil
 }
 
 // SessionMFARequired implements Client: the cluster's auth preference

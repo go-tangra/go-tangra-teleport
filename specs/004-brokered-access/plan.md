@@ -114,6 +114,33 @@ Result: pass, with the deviations listed below.
 - FR-013 deferred (R3). FR-018 tenant bound is enforced by the module, not by
   Teleport (R1). FR-016 is two rows per terminal (R12).
 
+### Deviations found during implementation (Teleport 18.11 behaviour)
+
+- **D1 Management identity must come from a sign-in.** Every `tctl auth
+  sign` identity is itself an impersonated certificate, and Teleport refuses
+  impersonation from one ("impersonated user can not impersonate anyone
+  else"); renewing it for itself keeps the impersonator. Brokered access
+  therefore needs a management identity obtained by signing in as
+  `tangra-mgmt` (`tsh login --user=tangra-mgmt --out=tangra-mgmt.identity
+  --format=file`, password and second factor once; its lifetime is bounded
+  by the role's `max_session_ttl`). The other features keep working with a
+  `tctl auth sign` identity. A refusal for this reason answers 422
+  `management_identity_unsuitable` (distinct from
+  `management_role_outdated`); the integration test signs in through the
+  proxy's web login (password + TOTP) to get one.
+- **D2 Host CA.** The CAs `GenerateUserCerts` returns are the user CA, not
+  the host CA. The host CA is read with `GetClusterCACert` (TLS) and
+  `GetCertAuthorities(HostCA, false)` (SSH; allowed by Teleport's implicit
+  rules, no role change) on every issuance; the proxy TLS and the node host
+  certificates are verified against it.
+- **D3 Lifetime.** The impersonated certificate is not capped by the
+  impersonator's expiry (an 8 h request from a 2 h management identity got
+  8 h); Teleport still applies the user's roles' `max_session_ttl`. The
+  expiry shown is the certificate's (unchanged plan behaviour).
+- **D4 Impersonate rule.** `users: ['*'], roles: ['*']` with the `where`
+  clause on `impersonate_user.metadata.labels` is accepted as planned; a
+  local user (the cluster administrator) is refused by Teleport.
+
 ## Data model
 
 - `cluster_access_settings(cluster_id PK → clusters, tenant_id,

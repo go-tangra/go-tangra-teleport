@@ -88,6 +88,21 @@ func (s *stubAccess) GenerateUserCerts(_ context.Context, req proto.UserCertsReq
 		TLSCACerts: [][]byte{s.caPEM}, SSHCACerts: [][]byte{ssh.MarshalAuthorizedKey(s.sshCA.PublicKey())}}, nil
 }
 
+func (s *stubAccess) GetClusterCACert(context.Context) (*proto.GetClusterCACertResponse, error) {
+	return &proto.GetClusterCACertResponse{TLSCA: s.caPEM}, nil
+}
+
+func (s *stubAccess) GetCertAuthorities(_ context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	if caType != types.HostCA || loadKeys {
+		return nil, trace.BadParameter("unexpected CA request")
+	}
+	other, _ := types.NewCertAuthority(types.CertAuthoritySpecV2{Type: types.HostCA, ClusterName: "leaf.example.com",
+		ActiveKeys: types.CAKeySet{SSH: []*types.SSHKeyPair{{PublicKey: []byte("ssh-ed25519 AAAAleaf\n")}}}})
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{Type: types.HostCA, ClusterName: "prod.example.com",
+		ActiveKeys: types.CAKeySet{SSH: []*types.SSHKeyPair{{PublicKey: ssh.MarshalAuthorizedKey(s.sshCA.PublicKey())}}}})
+	return []types.CertAuthority{other, ca}, err
+}
+
 func (s *stubAccess) GetAuthPreference(context.Context) (types.AuthPreference, error) {
 	mfa := types.RequireMFAType_OFF
 	if s.mfa {
@@ -126,8 +141,10 @@ func TestRealIssueUserCerts(t *testing.T) {
 	if d := st.req.Expires.Add(-time.Minute).Sub(c.Expires); d < -time.Second || d > time.Second {
 		t.Fatalf("expiry %v vs %v", c.Expires, st.req.Expires)
 	}
-	if len(c.TLSCAs) != 1 || len(c.SSHCAs) != 1 {
-		t.Fatal("host CA missing")
+	// The host CA of this cluster only, never the response's user CA.
+	if len(c.TLSCAs) != 1 || len(c.SSHCAs) != 1 || !bytes.Equal(c.TLSCAs[0], st.caPEM) ||
+		!bytes.Equal(c.SSHCAs[0], ssh.MarshalAuthorizedKey(st.sshCA.PublicKey())) {
+		t.Fatalf("host CA %q %q", c.TLSCAs, c.SSHCAs)
 	}
 	// The key matches the certificates.
 	if _, err := c.tlsConfig(); err != nil {
