@@ -476,8 +476,32 @@ type Enrollments interface {
 	ListActiveEnrollments(ctx context.Context, limit int) ([]Enrollment, error)
 }
 
+// DefaultAccessTTLMinutes is the lifetime of brokered access when a
+// cluster has no saved setting (spec 004 FR-003: 8 hours).
+const DefaultAccessTTLMinutes = 480
+
+// AccessSettings are a cluster's brokered-access settings (spec 004 R4).
+type AccessSettings struct {
+	ClusterID        string
+	TenantID         string
+	AccessTTLMinutes int // 15..720
+	UpdatedAt        time.Time
+	UpdatedBy        string
+}
+
+// AccessSettingsStore is the cluster access settings surface.
+type AccessSettingsStore interface {
+	// GetAccessSettings returns the cluster's settings, or the defaults
+	// (DefaultAccessTTLMinutes, zero UpdatedAt) when none were saved.
+	GetAccessSettings(ctx context.Context, tenantID, clusterID string) (AccessSettings, error)
+	// PutAccessSettings upserts the settings (ErrNotFound when the cluster
+	// is not the tenant's).
+	PutAccessSettings(ctx context.Context, s AccessSettings) error
+}
+
 // Store is the full persistence contract.
 type Store interface {
+	AccessSettingsStore
 	Clusters
 	JoinTokens
 	Snapshots

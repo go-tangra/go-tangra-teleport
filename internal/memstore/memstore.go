@@ -41,6 +41,7 @@ type Mem struct {
 	deliveries map[string]repo.AlertDelivery
 	drafts     map[string]repo.DeploymentDraft
 	enrolls    map[string]repo.Enrollment
+	access     map[string]repo.AccessSettings // by cluster id
 	audit      []repo.AuditRow
 
 	failNext map[string]bool
@@ -56,7 +57,8 @@ func New() *Mem {
 		clusters: map[string]repo.Cluster{}, tokens: map[string]repo.JoinToken{}, snapshots: map[string]repo.ResourceSnapshot{},
 		links: map[string]repo.ResourceLink{}, mappings: map[string]repo.RoleMapping{}, users: map[string]repo.ManagedUser{},
 		rules: map[string]repo.AlertRule{}, cursors: map[string]repo.AlertCursor{}, deliveries: map[string]repo.AlertDelivery{},
-		drafts: map[string]repo.DeploymentDraft{}, enrolls: map[string]repo.Enrollment{}, failNext: map[string]bool{},
+		drafts: map[string]repo.DeploymentDraft{}, enrolls: map[string]repo.Enrollment{}, access: map[string]repo.AccessSettings{},
+		failNext: map[string]bool{},
 		Now: func() time.Time { return time.Now().UTC() },
 	}
 }
@@ -232,6 +234,7 @@ func (m *Mem) DeleteCluster(_ context.Context, tenantID, id string) error {
 		}
 	}
 	delete(m.cursors, id)
+	delete(m.access, id)
 	for k, d := range m.deliveries {
 		if d.ClusterID == id {
 			delete(m.deliveries, k)
@@ -896,6 +899,35 @@ func (m *Mem) DeleteAlertRule(_ context.Context, tenantID, id string) error {
 		return repo.ErrNotFound
 	}
 	m.deleteRule(id)
+	return nil
+}
+
+// ---------------------------------------------------------------- access settings
+
+// GetAccessSettings implements repo.Store.
+func (m *Mem) GetAccessSettings(_ context.Context, tenantID, clusterID string) (repo.AccessSettings, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("GetAccessSettings"); err != nil {
+		return repo.AccessSettings{}, err
+	}
+	if a, ok := m.access[clusterID]; ok && a.TenantID == tenantID {
+		return a, nil
+	}
+	return repo.AccessSettings{ClusterID: clusterID, TenantID: tenantID, AccessTTLMinutes: repo.DefaultAccessTTLMinutes}, nil
+}
+
+// PutAccessSettings implements repo.Store.
+func (m *Mem) PutAccessSettings(_ context.Context, a repo.AccessSettings) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("PutAccessSettings"); err != nil {
+		return err
+	}
+	if !m.owned(a.TenantID, a.ClusterID) {
+		return repo.ErrNotFound
+	}
+	m.access[a.ClusterID] = a
 	return nil
 }
 
