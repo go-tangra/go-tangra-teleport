@@ -66,6 +66,13 @@ func (s Secret) Reveal() []byte { return append([]byte(nil), s.b...) }
 // Len is the value's length.
 func (s Secret) Len() int { return len(s.b) }
 
+// Wipe zeroes the held copy and empties s (best effort: copies handed out
+// by Reveal are the caller's to drop).
+func (s *Secret) Wipe() {
+	clear(s.b)
+	s.b = nil
+}
+
 // IsZero reports an empty value.
 func (s Secret) IsZero() bool { return len(s.b) == 0 }
 

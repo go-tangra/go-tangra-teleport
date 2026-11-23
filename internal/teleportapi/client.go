@@ -150,6 +150,15 @@ type Client interface {
 	// holds at most one error and is closed. Cancel ctx to stop early.
 	StreamRecording(ctx context.Context, sid string, start int64) (<-chan RecordingEvent, <-chan error)
 
+	// Brokered access (spec 004, access.go). IssueUserCerts asks for
+	// certificates as user (impersonation by the management identity);
+	// ListNodesAs and OpenShell act as the certificates' user, so Teleport's
+	// RBAC decides; SessionMFARequired reads the cluster auth preference.
+	IssueUserCerts(ctx context.Context, user string, ttl time.Duration) (*UserCerts, error)
+	SessionMFARequired(ctx context.Context) (bool, error)
+	ListNodesAs(ctx context.Context, certs *UserCerts) ([]Resource, error)
+	OpenShell(ctx context.Context, certs *UserCerts, req ShellRequest) (Shell, error)
+
 	Close() error
 }
 
@@ -198,16 +207,19 @@ func Dial(ctx context.Context, p DialParams) (Client, error) {
 	if err != nil {
 		return nil, MapError(err)
 	}
-	return Limit(&real{c: c, w: c, e: c}, l), nil
+	return Limit(&real{c: c, w: c, e: c, a: c, t: dialTarget{proxyAddr: p.ProxyAddr, cluster: id.ClusterName, guard: p.Guard, limits: l}}, l), nil
 }
 
-// real adapts *tclient.Client to Client (errors are mapped by Limit); w and
-// e are the same client, seen through the writes and the enrollment and
-// audit calls they use (test seams).
+// real adapts *tclient.Client to Client (errors are mapped by Limit); w, e
+// and a are the same client, seen through the writes, the enrollment and
+// audit calls and the brokered-access calls they use (test seams); t is how
+// to reach the proxy as a user (spec 004).
 type real struct {
 	c *tclient.Client
 	w writeAPI
 	e enrollAPI
+	a accessAPI
+	t dialTarget
 }
 
 func (r *real) Ping(ctx context.Context) (Info, error) {

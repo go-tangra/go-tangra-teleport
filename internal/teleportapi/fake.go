@@ -44,6 +44,17 @@ type Fake struct {
 	Recordings   map[string][]RecordingEvent
 	RecordingErr map[string]error
 
+	// Brokered access (spec 004, fake_access.go). ImpersonationDenied
+	// refuses every IssueUserCerts (a management role without the
+	// impersonate rule); MaxCertTTL caps issued lifetimes; ClusterSessionMFA
+	// is the auth preference's per-session MFA; NodeAccess lists the nodes
+	// each user may see and reach (nil: every node).
+	ImpersonationDenied bool
+	MaxCertTTL          time.Duration
+	ClusterSessionMFA   bool
+	NodeAccess          map[string][]string
+	access              fakeAccess
+
 	// CACerts is the PEM the fake's CAPins reads (nil: one generated CA).
 	CACerts []byte
 	// TokenPrefix prefixes issued join-token names (a redaction sentinel).

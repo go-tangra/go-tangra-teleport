@@ -95,6 +95,24 @@ func TestRenderedArtifacts(t *testing.T) {
 	if err := yaml.Unmarshal(role, &r); err != nil || r["kind"] != "role" {
 		t.Fatalf("role %v %v", r, err)
 	}
+	// Spec 004 R1: impersonation is bounded by Teleport to managed users.
+	var rv struct {
+		Spec struct {
+			Allow struct {
+				Impersonate struct {
+					Users, Roles []string
+					Where        string
+				}
+			}
+		}
+	}
+	if err := yaml.Unmarshal(role, &rv); err != nil {
+		t.Fatal(err)
+	}
+	imp := rv.Spec.Allow.Impersonate
+	if imp.Where != `equals(impersonate_user.metadata.labels["tangra.io/managed"], "true")` || len(imp.Users) != 1 || len(imp.Roles) != 1 {
+		t.Fatalf("impersonate rule %+v", imp)
+	}
 	cmds, _ := deploy.Render("setup-commands.txt", acme)
 	for _, want := range []string{"tctl users add admin --roles=editor,access,auditor --logins=root,ubuntu",
 		"tctl create -f tangra-manager-role.yaml", "tctl users add tangra-mgmt --roles=tangra-manager",
