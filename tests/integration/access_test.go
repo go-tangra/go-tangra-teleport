@@ -17,15 +17,18 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/netip"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	tclient "github.com/gravitational/teleport/api/client"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/access"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/netguard"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/secrets"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/teleportapi"
@@ -179,6 +182,29 @@ func TestBrokeredAccessTeleport(t *testing.T) {
 		defer long.Drop()
 		return time.Until(long.Expires).Round(time.Minute)
 	}())
+
+	// The downloaded identity file works with the Teleport client library as
+	// the managed user (what tsh -i does), verifying the proxy against the
+	// host CA it carries.
+	file, err := access.EncodeIdentity(certs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned := bc.guard.Dialer(bc.proxy)
+	asUser, err := tclient.New(ctx, tclient.Config{
+		Dialer:                     tclient.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) { return pinned(ctx, network, bc.proxy) }),
+		Credentials:                []tclient.Credentials{tclient.LoadIdentityFileFromString(string(file.Reveal()))},
+		ALPNSNIAuthDialClusterName: itCluster,
+	})
+	file.Wipe()
+	if err != nil {
+		t.Fatalf("identity file client: %v", err)
+	}
+	ping, err := asUser.Ping(ctx)
+	_ = asUser.Close()
+	if err != nil || ping.ClusterName != itCluster {
+		t.Fatalf("ping as the user: %+v %v", ping, err)
+	}
 
 	nodes, err := cl.ListNodesAs(ctx, certs)
 	if err != nil || len(nodes) != 1 || nodes[0].Name != bc.nodeID {

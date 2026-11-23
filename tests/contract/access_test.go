@@ -142,6 +142,15 @@ func TestAccessRoutes(t *testing.T) {
 	do("POST", base+"/identity", "carol", nil, 409, "not_provisioned")
 	do("POST", base+"/identity", "outsider", nil, 404, "not_found")
 	do("POST", base+"/identity", "viewer", nil, 403, "forbidden")
+	// FR-017: the permission refusal is audited as a failure.
+	e.Audit.Flush(context.Background())
+	refused := false
+	for _, r := range e.Repo.Audit() {
+		refused = refused || r.Action == "teleport.access.issued" && r.Outcome == "failure" && r.Reason == "forbidden" && r.ActorID == ct.Viewer
+	}
+	if !refused {
+		t.Fatal("forbidden download not audited")
+	}
 	do("POST", base+"/identity", "alice", map[string]any{"ttl_minutes": 721}, 422, "validation_failed")
 	do("POST", base+"/identity", "alice", map[string]any{"ttl_minutes": 5}, 422, "validation_failed")
 	rec = do("POST", base+"/identity", "alice", map[string]any{"ttl_minutes": 60}, 200, "")

@@ -140,6 +140,39 @@ Result: pass, with the deviations listed below.
 - **D4 Impersonate rule.** `users: ['*'], roles: ['*']` with the `where`
   clause on `impersonate_user.metadata.labels` is accepted as planned; a
   local user (the cluster administrator) is refused by Teleport.
+- **D5 Node listing cache.** Instead of caching an impersonated client for
+  4 min, each listing issues 5-minute certificates (never leaving the
+  module, not audited as an issuance) and the result — not the
+  certificates — is cached per tenant, user and cluster for 60 s. Listing
+  requires an MFA session (it issues certificates).
+- **D6 Extra refusals.** `user_locked` (409), `terminal_ended` (409),
+  `too_many` (429) and `management_identity_unsuitable` (422, D1) join the
+  reasons; a login the certificates do not carry is 422 `validation_failed`
+  (field `login`) before any SSH connection.
+- **D7 GET access** issues nothing and does not require MFA; it returns an
+  `mfa` flag so the UI can explain. Settings are shown there (no separate
+  GET settings route); an administrator who is not provisioned sees the
+  lifetime field without its current value.
+- **D8 Audit.** `teleport.access.issued` (download), `teleport.terminal.started`
+  and `teleport.terminal.ended` (`end_reason`, `duration_s`) target the
+  managed user; refusals are the same action with outcome failure (the
+  finer `label_mismatch` reason is audit-only, the API says
+  `not_provisioned`). Route-permission refusals happen in the HTTP
+  middleware before the handler; a hook (`Server.OnDenied`) audits them for
+  the two issuing routes (identity download, terminal create) as
+  `forbidden` failures. Permission refusals of the read routes (my access,
+  nodes, terminal input/output) are answered 403 and not audited.
+- **D9 Keys.** User keys are ECDSA P-256 (generated in memory per issuance);
+  clusters restricted to the legacy RSA-only signature suite would refuse
+  them.
+- **D10 Watchdog.** It re-runs the full resolution (permission, cluster,
+  managed-user row, labels, lock) every 30 s and ends a terminal only on a
+  definitive refusal (forbidden, not found, not provisioned, locked); a
+  transient failure (cluster unreachable) keeps it. A permission removed in
+  the platform ends terminals within 30 s.
+- **D11 Self renewal.** The management user asking for its own
+  certificates is a renewal, not an impersonation; the module never asks
+  for it (it is not a managed user).
 
 ## Data model
 

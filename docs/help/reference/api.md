@@ -99,6 +99,10 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET /clusters/{id}/enrollment-targets`, `POST /clusters/{id}/enrollments`, `POST /clusters/{id}/enrollments/{eid}/cancel`, `POST /clusters/{id}/enrollments/{eid}/retry` | `resources:enroll` |
 | `GET /clusters/{id}/events`, `GET /clusters/{id}/sessions`, `GET /audit` | `audit:read` |
 | `GET /clusters/{id}/sessions/{sid}/recording` (`?cursor=`) | `sessions:play` |
+| `GET /clusters/{id}/access`, `GET /clusters/{id}/access/nodes` | `access:terminal` |
+| `POST /clusters/{id}/access/identity` (optional `{"ttl_minutes": n}`; answers the identity file as a `text/plain` attachment with `X-Teleport-Expires` and `X-Teleport-User`) | `access:download` |
+| `PUT /clusters/{id}/access/settings` (`{"access_ttl_minutes": 15..720}`) | `clusters:manage` |
+| `POST /clusters/{id}/terminals`, `DELETE /clusters/{id}/terminals/{tid}`, `GET /clusters/{id}/terminals/{tid}/output` (server-sent events: `output` with the byte offset as id, `gap`, `end`, `bye`; resume with `Last-Event-ID` or `?from=`), `POST /clusters/{id}/terminals/{tid}/input` (`{"data": base64}`, at most 64 KiB), `POST .../resize`, `POST .../keepalive` | `access:terminal` |
 | `GET /alert-rules` | `alerts:read` |
 | `POST /alert-rules`, `PUT` and `DELETE /alert-rules/{id}` | `alerts:manage` |
 | `GET /clusters/{id}/mappings`, `GET /clusters/{id}/managed-users` | `users:read` |
@@ -212,6 +216,14 @@ Every refusal is JSON with a stable `reason`, sometimes a `message` and a
 | 410 | `playback_expired` | The recording cursor expired, came from another module instance, or belongs to another user or session; start the playback again |
 | 413 | `recording_too_large` | The recording is over `recording.max_bytes`; `detail.max_bytes` gives the limit |
 | 422 | `not_playable` | Not an SSH terminal session; open it in Teleport |
+| 403 | `mfa_required` | Brokered access needs a portal session signed in with a second factor |
+| 409 | `not_provisioned` | You have no active provisioned Teleport user on this cluster |
+| 409 | `user_locked` | A Teleport lock targets your Teleport user |
+| 409 | `terminal_ended` | The terminal has ended |
+| 422 | `session_mfa_required` | A role of your Teleport user (or the cluster) requires Teleport's per-session MFA |
+| 422 | `management_role_outdated` | The management role cannot impersonate managed users; apply the current tangra-manager role |
+| 422 | `management_identity_unsuitable` | The management identity was made with `tctl auth sign`, which Teleport never lets impersonate; register a sign-in identity |
+| 429 | `too_many` | You already have 5 terminals open (or the module its maximum) |
 | 429 | `rate_limited` | Deployment checks were run again within 10 seconds, or too many recording pages are being read (honour `Retry-After`) |
 | 501 | `not_implemented` | The route is not available in this build |
 | 502 | `cluster_unreachable` | The Teleport cluster did not answer |

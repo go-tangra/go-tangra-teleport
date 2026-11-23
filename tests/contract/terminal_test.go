@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http/httptest"
@@ -33,6 +34,14 @@ func TestTerminalRoutes(t *testing.T) {
 	}
 	open := map[string]any{"node": "node-1", "login": "deploy", "cols": 80, "rows": 24}
 	do("POST", base, "viewer", open, 403, "forbidden")
+	e.Audit.Flush(context.Background())
+	refused := false
+	for _, r := range e.Repo.Audit() {
+		refused = refused || r.Action == "teleport.terminal.started" && r.Outcome == "failure" && r.Reason == "forbidden"
+	}
+	if !refused {
+		t.Fatal("forbidden terminal not audited")
+	}
 	do("POST", base, "alicepwd", open, 403, "mfa_required")
 	do("POST", base, "carol", open, 409, "not_provisioned")
 	do("POST", base, "outsider", open, 404, "not_found")

@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/access"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/audit"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/authz"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/stream"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/teleportapi"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/terminal"
@@ -41,6 +44,10 @@ func (s *Server) failTerminal(w http.ResponseWriter, r *http.Request, err error)
 // logged.
 func (s *Server) registerTerminals(hub *terminal.Hub) {
 	base := Prefix + "/clusters/{id}/terminals"
+	// FR-017: a terminal refused for the missing permission is audited too.
+	s.OnDenied("POST "+base, func(r *http.Request, _ authz.Subjects) {
+		hub.Access.Record(r.Context(), audit.TerminalStarted, access.Grant{}, authz.ErrForbidden, map[string]any{"kind": access.KindTerminal})
+	})
 	s.MustHandle("POST", base, func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			Node  string `json:"node"`

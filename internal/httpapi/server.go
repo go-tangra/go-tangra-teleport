@@ -68,6 +68,20 @@ type Server struct {
 	log       *slog.Logger
 	remote    fs.FS
 	handler   http.Handler
+	// denied records a route-permission refusal of selected routes (the
+	// brokered-access issuance routes audit them, spec 004 FR-017).
+	denied map[string]func(r *http.Request, subj authz.Subjects)
+}
+
+// OnDenied makes a refusal of pattern ("METHOD /path") by the route's
+// permission call f with the caller (after the 403 is decided).
+func (s *Server) OnDenied(pattern string, f func(r *http.Request, subj authz.Subjects)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.denied == nil {
+		s.denied = map[string]func(*http.Request, authz.Subjects){}
+	}
+	s.denied[pattern] = f
 }
 
 var formatsOnce sync.Once

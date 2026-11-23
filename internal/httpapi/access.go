@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/access"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/audit"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/authz"
 )
 
 // Spec 004 refusals (plan.md Contract).
@@ -76,6 +78,10 @@ var safeFile = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 // the identity download and the access settings. No response or log line
 // carries a key or certificate except the identity download's body.
 func (s *Server) registerAccess(svc *access.Service) {
+	// FR-017: a download refused for the missing permission is audited too.
+	s.OnDenied("POST "+Prefix+"/clusters/{id}/access/identity", func(r *http.Request, _ authz.Subjects) {
+		svc.Record(r.Context(), audit.AccessIssued, access.Grant{}, authz.ErrForbidden, map[string]any{"kind": access.KindDownload})
+	})
 	s.MustHandle("GET", Prefix+"/clusters/{id}/access", func(w http.ResponseWriter, r *http.Request) {
 		m, err := svc.Mine(r.Context(), r.PathValue("id"))
 		if err != nil {

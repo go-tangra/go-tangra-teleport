@@ -94,6 +94,12 @@ func (s *Server) authorize(next http.Handler) http.Handler {
 			return
 		}
 		if err := authz.Require(r.Context(), s.checker, subj, perm); err != nil {
+			s.mu.RLock()
+			f := s.denied[r.Pattern]
+			s.mu.RUnlock()
+			if f != nil {
+				f(r.WithContext(authz.WithSubjects(r.Context(), subj)), subj)
+			}
 			WriteError(w, ErrForbidden.Status, ErrForbidden.Reason)
 			return
 		}
