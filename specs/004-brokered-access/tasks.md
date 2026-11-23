@@ -30,13 +30,13 @@ Tests are required (constitution IV): write each test before its code.
 
 ## Phase 5: US1 – portal terminal (P1)
 
-- [ ] T014 [P] [US1] Tests internal/terminal/hub_test.go: limits 5/user, 64/process (429); lookup of another user's terminal is not found; ring buffer resume from offset; stream closes at the max duration; reader-gone 30 s and keepalive 3 min and 8 h timeouts end the terminal (fake clock)
-- [ ] T015 [US1] Implement internal/terminal/{hub,terminal}.go: SSH session with PTY (`xterm-256color`, cols/rows), output pump into ring + subscribers, input/resize, end reasons (R6); certificates dropped from memory on end
-- [ ] T016 [US1] Implement internal/terminal/watchdog.go (R7): every 30 s check the managed user still exists, is owned, and is not locked; end otherwise; tests with Fake
-- [ ] T017 [US1] Node listing internal/access/nodes.go (R10): impersonated short-lived client per user+cluster (cached 4 min), returns nodes + allowed logins
-- [ ] T018 [US1] HTTP internal/httpapi/terminal.go: create, SSE output (event id = offset, `?from=`/Last-Event-ID, closes at 290 s), input (≤64 KiB base64), resize (1..1000), keepalive, delete; audit start/end
-- [ ] T019 [US1] Contract tests in tests/contract/terminal_test.go: 403/404/422/429 and SSE resume
-- [ ] T020 [US1] Wire services in cmd/ / server deps; graceful shutdown ends all terminals with reason `shutdown`
+- [X] T014 [P] [US1] Tests internal/terminal/hub_test.go: limits 5/user, 64/process (429); lookup of another user's terminal is not found; ring buffer resume from offset; stream closes at the max duration; reader-gone 30 s and keepalive 3 min and 8 h timeouts end the terminal (fake clock)
+- [X] T015 [US1] Implement internal/terminal/{hub,terminal}.go: SSH session with PTY (`xterm-256color`, cols/rows), output pump into ring + subscribers, input/resize, end reasons (R6); certificates dropped from memory on end
+- [X] T016 [US1] Implement internal/terminal/watchdog.go (R7): every 30 s check the managed user still exists, is owned, and is not locked; end otherwise; tests with Fake
+- [X] T017 [US1] Node listing internal/access/nodes.go (R10): impersonated short-lived client per user+cluster (cached 4 min), returns nodes + allowed logins
+- [X] T018 [US1] HTTP internal/httpapi/terminal.go: create, SSE output (event id = offset, `?from=`/Last-Event-ID, closes at 290 s), input (≤64 KiB base64), resize (1..1000), keepalive, delete; audit start/end
+- [X] T019 [US1] Contract tests in tests/contract/terminal_test.go: 403/404/422/429 and SSE resume
+- [X] T020 [US1] Wire services in cmd/ / server deps; graceful shutdown ends all terminals with reason `shutdown`
 
 ## Phase 6: US1/US2/US4 UI
 

@@ -19,6 +19,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/repo"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/store"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/teleportapi"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/terminal"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/users"
 )
 
@@ -50,6 +51,11 @@ const (
 )
 
 func accessServer(t *testing.T) (*httpapi.Server, *ct.Env, string) {
+	s, e, id, _ := accessTerminalServer(t)
+	return s, e, id
+}
+
+func accessTerminalServer(t *testing.T) (*httpapi.Server, *ct.Env, string, *terminal.Hub) {
 	t.Helper()
 	e := ct.New(t, nil)
 	for _, u := range []string{accAlice, accCarol, otherTnt} {
@@ -78,8 +84,10 @@ func accessServer(t *testing.T) (*httpapi.Server, *ct.Env, string) {
 		t.Fatal(err)
 	}
 	svc := &access.Service{Clusters: e.Service, Repo: e.Repo, Audit: e.Audit, Now: e.Now}
-	s.Register(httpapi.Deps{Clusters: e.Service, Access: svc})
-	return s, e, c.ID
+	hub := &terminal.Hub{Access: svc, Now: e.Now}
+	t.Cleanup(hub.Shutdown)
+	s.Register(httpapi.Deps{Clusters: e.Service, Access: svc, Terminals: hub})
+	return s, e, c.ID, hub
 }
 
 // T013: every refusal of the access routes and the identity download.
@@ -110,7 +118,7 @@ func TestAccessRoutes(t *testing.T) {
 		if got := s.Permission(method, path); got != perm {
 			t.Errorf("%s: permission %q, want %q", route, got, perm)
 		}
-		if !strings.Contains(path, "/terminals") && !implemented[route] {
+		if !implemented[route] {
 			t.Errorf("%s has no handler", route)
 		}
 	}

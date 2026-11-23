@@ -45,6 +45,7 @@ import (
 	"github.com/go-tangra/go-tangra-portal/sdk/v4/pkg/gatewayclient"
 
 	"github.com/go-tangra/go-tangra-teleport/v4/docs"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/access"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/alerts"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/audit"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/auditlog"
@@ -76,6 +77,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/tasks"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/teleportapi"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/teleportapi/valkeycache"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/terminal"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/tokens"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/users"
 	"github.com/go-tangra/go-tangra-teleport/v4/pkg/teleportmanifest"
@@ -145,6 +147,12 @@ type App struct {
 	AlertEngine *alerts.Engine     // US4: the leased alert poller
 	// Recording replays recorded SSH sessions in the portal (spec 003).
 	Recording *recording.Service
+	// Access and Terminals are brokered Teleport access (spec 004): the
+	// caller's own managed user's certificates, issued by impersonation,
+	// for a tsh identity download or a terminal in the browser. Terminals
+	// live in this process (single replica or sticky routing).
+	Access    *access.Service
+	Terminals *terminal.Hub
 	// Provisioning is US5. Auth publishes no membership events (research
 	// D10), so there is no consumer: the Phase 9 scheduler tasks call
 	// Provisioning.Reconcile and PurgeDeprovisioned.
@@ -219,7 +227,7 @@ func Build(ctx context.Context, cfg config.Config, o Options) (a *App, err error
 	}
 	a.HTTP.Register(httpapi.Deps{Health: a.health, Hub: a.Hub, Clusters: a.Clusters, Users: a.Users, Roles: a.Roles, Locks: a.Locks,
 		Tokens: a.Tokens, Resources: a.Resources, Audit: a.AuditLog, Alerts: a.AlertRules, Provisioning: a.Provisioning,
-		Deployments: a.Deployments, Enroll: a.Enroll, Recording: a.Recording})
+		Deployments: a.Deployments, Enroll: a.Enroll, Recording: a.Recording, Access: a.Access, Terminals: a.Terminals})
 	// Mesh gRPC surface (teleport.v1, SPIFFE mTLS; deploy/policy.yaml) and
 	// the scheduler task executor (svc/scheduler only).
 	grpcapi.Register(a.Freya.GRPC(), grpcapi.Deps{Resources: a.Resources, Enroll: a.Enroll, Audit: a.Audit})
@@ -460,6 +468,14 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 	// another replica answers playback_expired); the bounds are per process.
 	a.Recording = &recording.Service{Clusters: a.Clusters, Audit: a.Audit, Signer: recording.NewSigner(),
 		Limiter: recording.NewLimiter(cfg.Recording.MaxConcurrent, cfg.Recording.MaxPerUser), MaxBytes: cfg.Recording.MaxBytes}
+
+	// Spec 004: brokered access. The hub's worker sweeps timeouts, runs the
+	// revocation watchdog and ends every terminal (reason shutdown) when
+	// the module stops; Close ends them too.
+	a.Access = &access.Service{Clusters: a.Clusters, Repo: a.Repo, Audit: a.Audit, Log: a.Log}
+	a.Terminals = &terminal.Hub{Access: a.Access, Log: a.Log}
+	a.AddWorker("terminals", a.Terminals.Run)
+	a.closers = append(a.closers, a.Terminals.Shutdown)
 
 	// US5: role mappings and provisioning. The auth SDK cannot list a
 	// tenant's members with their module roles, groups and login, so the

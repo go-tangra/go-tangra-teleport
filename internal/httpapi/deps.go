@@ -15,6 +15,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/resources"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/roles"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/stream"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/terminal"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/tokens"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/users"
 )
@@ -46,7 +47,8 @@ type Deps struct {
 
 	Recording *recording.Service // spec 003: in-portal playback of recorded SSH sessions
 
-	Access *access.Service // spec 004: brokered Teleport access (my access, nodes, identity download)
+	Access    *access.Service // spec 004: brokered Teleport access (my access, nodes, identity download)
+	Terminals *terminal.Hub   // spec 004: brokered SSH terminals in the browser
 
 	Provisioning *provisioning.Service // US5: role mappings, managed users, sync
 	Deployments  *deploy.Service       // US6: deployment wizard drafts, artifacts, checks
@@ -102,6 +104,9 @@ func (s *Server) Register(d Deps) {
 	}
 	if d.Access != nil {
 		s.registerAccess(d.Access)
+	}
+	if d.Terminals != nil {
+		s.registerTerminals(d.Terminals)
 	}
 	if d.Provisioning != nil {
 		s.registerProvisioning(d.Provisioning)
