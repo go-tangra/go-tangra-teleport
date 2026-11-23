@@ -41,6 +41,9 @@ const (
 	// Management is the identity's Teleport user; it holds ManagerRole.
 	Management  = "tangra-mgmt"
 	ManagerRole = "tangra-manager"
+	// AccessUser signs in for the access identity (spec 005); an identity
+	// of this user is answered by Teleport.AccessIssuer().
+	AccessUser = "tangra-access"
 
 	ProxyAddr   = "teleport.example.com:443" // resolves to a public address
 	ClusterName = "prod.example.com"         // the fake's cluster and the identity's CA
@@ -56,12 +59,16 @@ type Env struct {
 	Audit    *audit.Writer
 	Notify   *notify.Fake
 	Pool     *teleportapi.Pool
-	Perms    authz.Static
+	// AccessPool is the access identities' pool: the same Fake through
+	// AccessIssuer (spec 005).
+	AccessPool *teleportapi.Pool
+	Perms      authz.Static
 
-	mu    sync.Mutex
-	now   time.Time
-	dials atomic.Int64 // verification dials
-	pools atomic.Int64 // pool dials
+	mu          sync.Mutex
+	now         time.Time
+	dials       atomic.Int64 // verification dials
+	pools       atomic.Int64 // pool dials
+	accessPools atomic.Int64 // access pool dials
 }
 
 type resolver map[string]netip.Addr
@@ -111,10 +118,25 @@ func New(t testing.TB, log slog.Handler) *Env {
 		return teleportapi.Limit(e.Teleport, teleportapi.Limits{}), nil
 	})
 	t.Cleanup(e.Pool.Close)
+	e.AccessPool = teleportapi.NewPool(func(ctx context.Context, k teleportapi.Key) (teleportapi.Client, error) {
+		ref, err := secrets.ParseRef(k.CredentialRef)
+		if err != nil {
+			return nil, teleportapi.ErrCredentialInvalid
+		}
+		if _, err := e.Secrets.Get(ctx, ref); err != nil {
+			return nil, teleportapi.ErrCredentialInvalid
+		}
+		e.accessPools.Add(1)
+		return teleportapi.Limit(e.Teleport.AccessIssuer(), teleportapi.Limits{}), nil
+	})
+	t.Cleanup(e.AccessPool.Close)
 	e.Service = &clusters.Service{
-		Repo: e.Repo, Secrets: e.Secrets, Pool: e.Pool, Guard: guard,
+		Repo: e.Repo, Secrets: e.Secrets, Pool: e.Pool, AccessPool: e.AccessPool, Guard: guard,
 		Dial: func(ctx context.Context, p teleportapi.DialParams) (teleportapi.Client, error) {
 			e.dials.Add(1)
+			if id, err := teleportapi.ParseIdentity(p.Identity); err == nil && id.Subject == AccessUser {
+				return teleportapi.Limit(e.Teleport.AccessIssuer(), p.Limits), nil
+			}
 			return teleportapi.Limit(e.Teleport, p.Limits), nil
 		},
 		Authz: &authz.Authorizer{Checker: e.Perms, Clusters: e.Repo}, Audit: e.Audit, Events: e.Events, Notify: e.Notify,
@@ -140,6 +162,19 @@ func (e *Env) Advance(d time.Duration) {
 // Dials is the number of verification dials; PoolDials the pool dials.
 func (e *Env) Dials() int64     { return e.dials.Load() }
 func (e *Env) PoolDials() int64 { return e.pools.Load() }
+
+// AccessPoolDials is the number of access pool dials.
+func (e *Env) AccessPoolDials() int64 { return e.accessPools.Load() }
+
+// AccessIdentity returns a sign-in identity of AccessUser for the harness
+// cluster valid for lifetime from now (harness clock); impersonator makes
+// it a tctl auth sign identity instead.
+func (e *Env) AccessIdentity(t testing.TB, lifetime time.Duration, impersonator string) string {
+	t.Helper()
+	nb := e.Now().Add(-time.Minute)
+	return identitytest.New(t, identitytest.Options{Cluster: ClusterName, User: AccessUser, NotBefore: nb, NotAfter: nb.Add(lifetime),
+		Impersonator: impersonator})
+}
 
 // As returns a request context for a signed-in user of tenant.
 func As(tenant, user string) context.Context {

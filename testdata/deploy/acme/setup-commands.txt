@@ -17,3 +17,19 @@ finished and https://tp.example.test/ answers.
 3. Register the cluster in tangra: choose "Register this cluster" in the
    wizard. The proxy address is tp.example.test:443; upload tangra-mgmt.identity
    as the credential, then delete the file from the host.
+
+4. Optional, for portal terminals and tsh downloads: create the access role
+   and user (tangra-access-role.yaml was downloaded with this file), open
+   the invite link tctl prints and set a password and second factor:
+
+   sudo tctl create -f tangra-access-role.yaml
+   sudo tctl users add tangra-access --roles=tangra-access
+
+   Then sign in once as tangra-access from any machine with tsh (it asks
+   for the password and the second factor; --ttl is in minutes, at most
+   the role's max_session_ttl of one year):
+
+   tsh login --proxy=tp.example.test:443 --user=tangra-access --ttl=525600 --format=file --out=tangra-access.identity
+
+   Upload tangra-access.identity on the cluster page ("Access identity for
+   portal terminals"), then delete the file. Repeat before it expires.

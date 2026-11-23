@@ -34,8 +34,9 @@ const fakeManagedLabel = "tangra.io/managed"
 
 // FakeIssue records one IssueUserCerts call.
 type FakeIssue struct {
-	User string
-	TTL  time.Duration
+	User   string
+	TTL    time.Duration
+	Access bool // issued through AccessIssuer (the access identity)
 }
 
 type fakeHostCA struct {
@@ -121,6 +122,24 @@ func (f *Fake) lockedLocked(user string) bool {
 
 // IssueUserCerts implements Client.
 func (f *Fake) IssueUserCerts(_ context.Context, user string, ttl time.Duration) (*UserCerts, error) {
+	return f.issue(user, ttl, false)
+}
+
+// AccessIssuer is the same cluster seen through an access identity (spec
+// 005): the same users, CAs and nodes, but IssueUserCerts obeys
+// AccessImpersonationDenied (not ImpersonationDenied), its issues are
+// marked Access, and Close leaves the Fake open.
+func (f *Fake) AccessIssuer() Client { return fakeAccessIssuer{f} }
+
+type fakeAccessIssuer struct{ *Fake }
+
+func (a fakeAccessIssuer) IssueUserCerts(_ context.Context, user string, ttl time.Duration) (*UserCerts, error) {
+	return a.issue(user, ttl, true)
+}
+
+func (fakeAccessIssuer) Close() error { return nil }
+
+func (f *Fake) issue(user string, ttl time.Duration, viaAccess bool) (*UserCerts, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.enter("IssueUserCerts"); err != nil {
@@ -129,8 +148,12 @@ func (f *Fake) IssueUserCerts(_ context.Context, user string, ttl time.Duration)
 	if user == "" || ttl <= 0 || ttl > MaxAccessTTL {
 		return nil, trace.BadParameter("bad certificate request")
 	}
+	denied := f.ImpersonationDenied
+	if viaAccess {
+		denied = f.AccessImpersonationDenied
+	}
 	i := f.userIndex(user)
-	if f.ImpersonationDenied || i < 0 || f.Users[i].Labels[fakeManagedLabel] != "true" {
+	if denied || i < 0 || f.Users[i].Labels[fakeManagedLabel] != "true" {
 		return nil, trace.AccessDenied("user %q is not allowed to impersonate %q", "tangra-mgmt", user)
 	}
 	if f.lockedLocked(user) {
@@ -165,7 +188,7 @@ func (f *Fake) IssueUserCerts(_ context.Context, user string, ttl time.Duration)
 	}
 	sshLine := ssh.MarshalAuthorizedKey(sc)
 	tlsPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	f.access.issues = append(f.access.issues, FakeIssue{User: user, TTL: ttl})
+	f.access.issues = append(f.access.issues, FakeIssue{User: user, TTL: ttl, Access: viaAccess})
 	f.access.secrets = append(f.access.secrets, slices.Clone(keyPEM), slices.Clone(sshLine), slices.Clone(tlsPEM))
 	name := f.Info.ClusterName
 	return certsOf(&proto.Certs{SSH: sshLine, TLS: tlsPEM, TLSCACerts: [][]byte{ca.pem},

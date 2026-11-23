@@ -2,7 +2,8 @@
 // The caller's own Teleport access on a cluster (spec 004): their
 // provisioned Teleport user, roles and logins, and "Download access for
 // tsh" (access:download). Explains the not-provisioned and MFA-required
-// states. Administrators (clusters:manage) set the access lifetime here.
+// states, and (spec 005) a cluster whose access identity is missing or
+// expired. Administrators (clusters:manage) set the access lifetime here.
 import { computed, inject, onMounted, ref } from 'vue'
 import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
@@ -96,6 +97,14 @@ const hours = (m: number) => (m % 60 === 0 ? `${m / 60} h` : `${m} min`)
         </div>
         <UiAlert v-if="!mine.mfa" kind="warning" data-test="my-access-mfa">
           Your portal session did not use a second factor. Sign out and sign in again with MFA to open terminals or download access.
+        </UiAlert>
+        <UiAlert v-if="mine.access_identity === 'missing'" kind="warning" data-test="my-access-identity-missing">
+          This cluster has no access identity for portal terminals yet, so terminals and downloads may be refused.
+          {{ canManage ? 'Upload one in "Access identity for portal terminals" below.' : 'Ask an administrator to set it up.' }}
+        </UiAlert>
+        <UiAlert v-else-if="mine.access_identity === 'expired'" kind="error" data-test="my-access-identity-expired">
+          This cluster's access identity has expired, so terminals and downloads are refused.
+          {{ canManage ? 'Sign in as tangra-access again and replace it below.' : 'Ask an administrator to renew it.' }}
         </UiAlert>
         <p class="text-sm opacity-70">
           Open a terminal from the Resources tab. Access lasts {{ hours(mine.settings.access_ttl_minutes) }} (Teleport may shorten it).

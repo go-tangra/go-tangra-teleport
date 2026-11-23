@@ -80,7 +80,8 @@ const ARTIFACTS: Record<ArtifactName, string> = {
   'teleport.yaml': 'Teleport configuration (/etc/teleport.yaml)',
   'install.sh': 'Install script pinned to the chosen version',
   'tangra-manager-role.yaml': 'Least-privilege role tangra signs in with',
-  'setup-commands.txt': 'First administrator and management identity commands',
+  'tangra-access-role.yaml': 'Role of the access identity for portal terminals (optional)',
+  'setup-commands.txt': 'First administrator, management identity and access identity commands',
   'checklist.md': 'DNS, port and host checklist',
 }
 

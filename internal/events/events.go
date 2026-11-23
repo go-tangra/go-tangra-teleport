@@ -71,6 +71,9 @@ type ClusterStatus struct {
 type Credential struct {
 	ClusterID string    `json:"cluster_id"`
 	ExpiresAt time.Time `json:"expires_at"`
+	// Kind names which credential: empty for the management credential,
+	// "access_identity" for the access identity (spec 005).
+	Kind string `json:"kind,omitempty"`
 }
 
 // User is the body of teleport.user.*.

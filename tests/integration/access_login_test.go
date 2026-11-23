@@ -68,6 +68,23 @@ func totp(t *testing.T, secret string, at time.Time) string {
 // (the invite token is its own authorization).
 func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Container, guard *netguard.Guard, proxy, user, roles string, bootstrap []byte) []byte {
 	t.Helper()
+	return signIn(t, ctx, c, guard, proxy, user, roles, bootstrap, 2*time.Hour).identity
+}
+
+// signedIn is the outcome of signIn: the identity file and what signs in
+// again (the password and the TOTP secret).
+type signedIn struct {
+	identity []byte
+	password string
+	secret   string
+}
+
+// itPassword is the password signIn sets.
+const itPassword = "it-Brokered-Access-0123456789"
+
+// signIn is signInIdentity asking for ttl.
+func signIn(t *testing.T, ctx context.Context, c testcontainers.Container, guard *netguard.Guard, proxy, user, roles string, bootstrap []byte, ttl time.Duration) signedIn {
+	t.Helper()
 	out := tctlOut(t, ctx, c, "users", "add", user, "--roles="+roles)
 	m := regexp.MustCompile(`/web/invite/([A-Za-z0-9]+)`).FindStringSubmatch(out)
 	if m == nil {
@@ -90,7 +107,7 @@ func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Containe
 		t.Fatalf("register challenge: %v", err)
 	}
 	secret := ch.GetTOTP().GetSecret()
-	const password = "it-Brokered-Access-0123456789"
+	const password = itPassword
 	start := time.Now()
 	if _, err := api.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{TokenID: token, NewPassword: []byte(password),
 		NewDeviceName: "otp", NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
@@ -126,7 +143,7 @@ func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Containe
 	}
 	raw, code := post("/v1/webapi/mfa/login/finish", map[string]any{"user": user, "password": password, "totp_code": totp(t, secret, time.Now()),
 		"ssh_pub_key": ssh.MarshalAuthorizedKey(sshPub), "tls_pub_key": pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pkix}),
-		"ttl": int64(2 * time.Hour)})
+		"ttl": int64(ttl)})
 	var login struct {
 		Cert        []byte `json:"cert"`
 		TLSCert     []byte `json:"tls_cert"`
@@ -152,5 +169,31 @@ func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Containe
 	if err != nil {
 		t.Fatal(err)
 	}
-	return b
+	return signedIn{identity: b, password: password, secret: secret}
+}
+
+// tshLogin runs the documented `tsh login --format=file --out` inside the
+// container as the signed-in user si (spec 005: how an operator obtains the
+// access identity) and returns the identity file. tsh needs a terminal for
+// the password and the TOTP code: busybox script provides one, and the
+// answers to its terminal queries (background colour, cursor position)
+// are typed before the password. ttlMinutes is tsh's --ttl.
+func tshLogin(t *testing.T, ctx context.Context, c testcontainers.Container, si signedIn, user string, ttlMinutes int) []byte {
+	t.Helper()
+	// A TOTP code is used once: start in a fresh window.
+	time.Sleep(time.Until(time.Unix((time.Now().Unix()/30+1)*30, 0).Add(time.Second)))
+	code := totp(t, si.secret, time.Now())
+	const out = "/tmp/tsh-login.identity"
+	cmd := fmt.Sprintf("(sleep 3; printf '\\033]11;rgb:0000/0000/0000\\033\\\\\\033[1;1R'; sleep 2; echo '%s'; sleep 4; echo '%s'; sleep 15) | "+
+		"HOME=/tmp timeout 60 script -q -c 'tsh login --insecure --proxy=localhost:3080 --user=%s --ttl=%d --format=file --out=%s --overwrite' /dev/null 2>&1; echo rc=$?",
+		si.password, code, user, ttlMinutes, out)
+	_, r, err := c.Exec(ctx, []string{"/busybox/sh", "-c", cmd})
+	if err != nil {
+		t.Fatalf("tsh login: %v", err)
+	}
+	b, _ := io.ReadAll(r)
+	if !strings.Contains(string(b), "rc=0") {
+		t.Fatalf("tsh login: %q", b)
+	}
+	return copyOut(t, ctx, c, out)
 }

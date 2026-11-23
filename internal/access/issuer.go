@@ -1,7 +1,8 @@
 // Package access is brokered Teleport access (spec 004): a provisioned
 // portal user gets short-lived Teleport certificates without a Teleport
-// sign-in. The module's management identity asks Teleport for them as the
-// caller's own managed Teleport user (impersonation, research R1); Teleport
+// sign-in. The cluster's access identity (spec 005; the management identity
+// when none is configured) asks Teleport for them as the caller's own
+// managed Teleport user (impersonation, research R1); Teleport
 // allows that only for users labelled tangra.io/managed=true, and this
 // package additionally checks, before every issuance, that the user is the
 // caller's: the managed-user row of (tenant, portal user, cluster), active,
@@ -21,7 +22,6 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/audit"
@@ -145,9 +145,31 @@ func TTL(settings repo.AccessSettings, minutes int) (time.Duration, error) {
 	return time.Duration(min(minutes, max)) * time.Minute, nil
 }
 
-// Issue asks Teleport for certificates as g's user for ttl. Roles needing
-// per-session MFA are refused first; a refused impersonation names the
-// management role (or identity) to fix. The caller drops the certificates.
+// issuer is the client that asks for certificates (spec 005): the
+// cluster's access identity, or — when none is configured — the management
+// identity (fallback, which works only for a sign-in management identity
+// whose role may impersonate). An expired access identity is refused
+// without dialling.
+func (s *Service) issuer(ctx context.Context, g Grant) (cl teleportapi.Client, fallback bool, err error) {
+	cl, err = s.Clusters.AccessClient(ctx, g.Cluster)
+	switch {
+	case errors.Is(err, clusters.ErrAccessIdentityMissing):
+		return g.Client, true, nil
+	case errors.Is(err, clusters.ErrAccessIdentityExpired):
+		return nil, false, ErrAccessIdentityExpired
+	case errors.Is(err, teleportapi.ErrCredentialInvalid):
+		return nil, false, ErrAccessIdentityInvalid
+	case err != nil:
+		return nil, false, err
+	}
+	return cl, false, nil
+}
+
+// Issue asks Teleport for certificates as g's user for ttl, with the
+// cluster's access identity (spec 005). Roles needing per-session MFA are
+// refused first; a refused impersonation names the access identity to fix
+// (access_identity_missing on the management fallback, otherwise
+// access_identity_invalid). The caller drops the certificates.
 func (s *Service) Issue(ctx context.Context, g Grant, ttl time.Duration) (*teleportapi.UserCerts, error) {
 	if g.Client == nil || g.User.Name == "" {
 		return nil, ErrNotProvisioned
@@ -155,13 +177,18 @@ func (s *Service) Issue(ctx context.Context, g Grant, ttl time.Duration) (*telep
 	if err := sessionMFA(ctx, g); err != nil {
 		return nil, err
 	}
-	certs, err := g.Client.IssueUserCerts(ctx, g.User.Name, ttl)
+	issuer, fallback, err := s.issuer(ctx, g)
 	if err != nil {
-		if errors.Is(err, teleportapi.ErrAccessDenied) {
-			if strings.Contains(teleportapi.Detail(err), "impersonated user") {
-				return nil, ErrIdentityUnsuitable
-			}
-			return nil, ErrRoleOutdated
+		return nil, err
+	}
+	certs, err := issuer.IssueUserCerts(ctx, g.User.Name, ttl)
+	if err != nil {
+		switch {
+		case fallback && errors.Is(err, teleportapi.ErrAccessDenied):
+			return nil, ErrAccessIdentityMissing
+		case !fallback && (errors.Is(err, teleportapi.ErrAccessDenied) || errors.Is(err, teleportapi.ErrCredentialInvalid)):
+			s.Clusters.InvalidateAccess(g.Cluster.ID)
+			return nil, ErrAccessIdentityInvalid
 		}
 		return nil, err
 	}
@@ -209,6 +236,10 @@ type Mine struct {
 	ProxyAddr    string       `json:"proxy_addr"`
 	ClusterName  string       `json:"cluster_name"`
 	Settings     SettingsView `json:"settings"`
+	// AccessIdentity is the cluster's access identity state (spec 005):
+	// ok, expiring, expired or missing (missing still works when the
+	// management identity is itself a sign-in identity).
+	AccessIdentity string `json:"access_identity"`
 }
 
 // Mine returns the caller's own access (access:terminal).
@@ -217,9 +248,13 @@ func (s *Service) Mine(ctx context.Context, clusterID string) (Mine, error) {
 	if err != nil {
 		return Mine{}, err
 	}
+	ai, err := s.Clusters.AccessIdentityOf(ctx, g.Cluster)
+	if err != nil {
+		return Mine{}, err
+	}
 	return Mine{TeleportUser: g.User.Name, Roles: nonNil(g.User.Roles), Logins: nonNil(g.User.Logins), MFA: g.Subject.MFA(),
 		CanTerminal: true, CanDownload: s.Clusters.Authz.Require(ctx, authz.AccessDownload) == nil,
-		ProxyAddr: g.Cluster.ProxyAddr, ClusterName: g.Cluster.ClusterName, Settings: viewOf(g.Settings)}, nil
+		ProxyAddr: g.Cluster.ProxyAddr, ClusterName: g.Cluster.ClusterName, Settings: viewOf(g.Settings), AccessIdentity: ai.State}, nil
 }
 
 func nonNil(v []string) []string {

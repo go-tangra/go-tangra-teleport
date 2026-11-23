@@ -42,6 +42,7 @@ type Mem struct {
 	drafts     map[string]repo.DeploymentDraft
 	enrolls    map[string]repo.Enrollment
 	access     map[string]repo.AccessSettings // by cluster id
+	accessIDs  map[string]repo.AccessIdentity // by cluster id
 	audit      []repo.AuditRow
 
 	failNext map[string]bool
@@ -58,8 +59,9 @@ func New() *Mem {
 		links: map[string]repo.ResourceLink{}, mappings: map[string]repo.RoleMapping{}, users: map[string]repo.ManagedUser{},
 		rules: map[string]repo.AlertRule{}, cursors: map[string]repo.AlertCursor{}, deliveries: map[string]repo.AlertDelivery{},
 		drafts: map[string]repo.DeploymentDraft{}, enrolls: map[string]repo.Enrollment{}, access: map[string]repo.AccessSettings{},
-		failNext: map[string]bool{},
-		Now:      func() time.Time { return time.Now().UTC() },
+		accessIDs: map[string]repo.AccessIdentity{},
+		failNext:  map[string]bool{},
+		Now:       func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -203,6 +205,7 @@ func (m *Mem) DeleteCluster(_ context.Context, tenantID, id string) error {
 		return repo.ErrNotFound
 	}
 	delete(m.clusters, id)
+	delete(m.accessIDs, id)
 	for k, e := range m.enrolls {
 		if e.ClusterID == id {
 			delete(m.enrolls, k)
@@ -928,6 +931,54 @@ func (m *Mem) PutAccessSettings(_ context.Context, a repo.AccessSettings) error 
 		return repo.ErrNotFound
 	}
 	m.access[a.ClusterID] = a
+	return nil
+}
+
+// ---------------------------------------------------------------- access identity
+
+// GetAccessIdentity implements repo.Store.
+func (m *Mem) GetAccessIdentity(_ context.Context, tenantID, clusterID string) (repo.AccessIdentity, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("GetAccessIdentity"); err != nil {
+		return repo.AccessIdentity{}, err
+	}
+	a, ok := m.accessIDs[clusterID]
+	if !ok || a.TenantID != tenantID {
+		return repo.AccessIdentity{}, repo.ErrNotFound
+	}
+	return a, nil
+}
+
+// PutAccessIdentity implements repo.Store.
+func (m *Mem) PutAccessIdentity(_ context.Context, a repo.AccessIdentity) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("PutAccessIdentity"); err != nil {
+		return err
+	}
+	if !m.owned(a.TenantID, a.ClusterID) {
+		return repo.ErrNotFound
+	}
+	if a.UpdatedAt.IsZero() {
+		a.UpdatedAt = m.Now()
+	}
+	m.accessIDs[a.ClusterID] = a
+	return nil
+}
+
+// DeleteAccessIdentity implements repo.Store.
+func (m *Mem) DeleteAccessIdentity(_ context.Context, tenantID, clusterID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.fail("DeleteAccessIdentity"); err != nil {
+		return err
+	}
+	a, ok := m.accessIDs[clusterID]
+	if !ok || a.TenantID != tenantID {
+		return repo.ErrNotFound
+	}
+	delete(m.accessIDs, clusterID)
 	return nil
 }
 

@@ -1,10 +1,11 @@
 // Package deploy is US6 (FR-030, FR-031, research D14): the deployment
 // wizard for a new Teleport Community Edition cluster. A draft holds the
 // wizard inputs; the artifacts (teleport.yaml, a version-pinned install.sh,
-// the tangra-manager role, the setup commands and a checklist) are rendered
-// on request from embedded text/template files and never stored; the
-// prerequisite checks (dns_apex, dns_wildcard, tls_443) go only through
-// netguard (research D12, SR-003), at most once per 10 s per draft.
+// the tangra-manager and tangra-access roles, the setup commands and a
+// checklist) are rendered on request from embedded text/template files and
+// never stored; the prerequisite checks (dns_apex, dns_wildcard, tls_443) go
+// only through netguard (research D12, SR-003), at most once per 10 s per
+// draft.
 //
 // Inputs are validated strictly before anything is rendered: an RFC 1123
 // domain, an e-mail address, a version x.y.z, a username and POSIX logins,
@@ -30,7 +31,7 @@ import (
 )
 
 // Artifacts lists the artifact names in wizard order (contracts/http-api.md).
-var Artifacts = []string{"teleport.yaml", "install.sh", "tangra-manager-role.yaml", "setup-commands.txt", "checklist.md"}
+var Artifacts = []string{"teleport.yaml", "install.sh", "tangra-manager-role.yaml", "tangra-access-role.yaml", "setup-commands.txt", "checklist.md"}
 
 // ErrUnknownArtifact refuses a name outside Artifacts (not_found).
 var ErrUnknownArtifact = errors.New("deploy: unknown artifact")

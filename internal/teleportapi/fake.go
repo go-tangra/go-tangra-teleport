@@ -50,10 +50,13 @@ type Fake struct {
 	// is the auth preference's per-session MFA; NodeAccess lists the nodes
 	// each user may see and reach (nil: every node).
 	ImpersonationDenied bool
-	MaxCertTTL          time.Duration
-	ClusterSessionMFA   bool
-	NodeAccess          map[string][]string
-	access              fakeAccess
+	// AccessImpersonationDenied refuses IssueUserCerts through AccessIssuer
+	// (spec 005: an access identity whose role cannot impersonate).
+	AccessImpersonationDenied bool
+	MaxCertTTL                time.Duration
+	ClusterSessionMFA         bool
+	NodeAccess                map[string][]string
+	access                    fakeAccess
 
 	// CACerts is the PEM the fake's CAPins reads (nil: one generated CA).
 	CACerts []byte

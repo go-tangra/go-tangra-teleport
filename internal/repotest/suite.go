@@ -39,6 +39,7 @@ func Run(t *testing.T, newStore Factory) {
 		"drafts":        testDrafts,
 		"enrollments":   testEnrollments,
 		"access":        testAccessSettings,
+		"access id":     testAccessIdentity,
 		"cascade":       testCascade,
 		"audit":         testAudit,
 		"audit list":    testAuditList,
@@ -453,6 +454,46 @@ func testAccessSettings(t *testing.T, s repo.Store) {
 	if got, _ := s.GetAccessSettings(ctx, TenantA, c.ID); got.AccessTTLMinutes != repo.DefaultAccessTTLMinutes {
 		t.Fatalf("settings survived the cluster: %+v", got)
 	}
+}
+
+// Spec 005: one access identity per cluster, tenant-scoped, replaced in
+// place, cascading with the cluster.
+func testAccessIdentity(t *testing.T, s repo.Store) {
+	c := NewCluster(TenantA, "c")
+	must(t, s.CreateCluster(ctx, c))
+	_, err := s.GetAccessIdentity(ctx, TenantA, c.ID)
+	wantErr(t, err, repo.ErrNotFound)
+	wantErr(t, s.DeleteAccessIdentity(ctx, TenantA, c.ID), repo.ErrNotFound)
+	now := base()
+	a := repo.AccessIdentity{ClusterID: c.ID, TenantID: TenantA, CredentialRef: "file:teleport-access-1", TeleportUser: "tangra-access",
+		IssuedAt: now.Add(-time.Hour), ExpiresAt: now.Add(30 * 24 * time.Hour), UpdatedAt: now, UpdatedBy: "alice"}
+	must(t, s.PutAccessIdentity(ctx, a))
+	a.CredentialRef, a.UpdatedBy = "file:teleport-access-2", "bob"
+	must(t, s.PutAccessIdentity(ctx, a))
+	got, err := s.GetAccessIdentity(ctx, TenantA, c.ID)
+	must(t, err)
+	if got.CredentialRef != "file:teleport-access-2" || got.TeleportUser != "tangra-access" || got.UpdatedBy != "bob" ||
+		!got.ExpiresAt.Equal(a.ExpiresAt) || !got.IssuedAt.Equal(a.IssuedAt) || !got.UpdatedAt.Equal(now) {
+		t.Fatalf("saved = %+v", got)
+	}
+	// Another tenant neither reads, writes nor removes it.
+	_, err = s.GetAccessIdentity(ctx, TenantB, c.ID)
+	wantErr(t, err, repo.ErrNotFound)
+	b := a
+	b.TenantID = TenantB
+	wantErr(t, s.PutAccessIdentity(ctx, b), repo.ErrNotFound)
+	wantErr(t, s.DeleteAccessIdentity(ctx, TenantB, c.ID), repo.ErrNotFound)
+	b = a
+	b.ClusterID = store.NewID()
+	wantErr(t, s.PutAccessIdentity(ctx, b), repo.ErrNotFound)
+	must(t, s.DeleteAccessIdentity(ctx, TenantA, c.ID))
+	_, err = s.GetAccessIdentity(ctx, TenantA, c.ID)
+	wantErr(t, err, repo.ErrNotFound)
+	must(t, s.PutAccessIdentity(ctx, a))
+	must(t, s.DeleteCluster(ctx, TenantA, c.ID))
+	must(t, s.CreateCluster(ctx, c))
+	_, err = s.GetAccessIdentity(ctx, TenantA, c.ID)
+	wantErr(t, err, repo.ErrNotFound)
 }
 
 func testAlertState(t *testing.T, s repo.Store) {

@@ -147,6 +147,14 @@ describe('TerminalPage', () => {
     expect(FakeSource.all).toHaveLength(0)
   })
 
+  it('says what to do when the access identity is missing or expired (spec 005)', async () => {
+    vi.spyOn(accessApi, 'create').mockRejectedValue(new ApiError(422, 'access_identity_expired'))
+    const w = await open()
+    const text = w.find('[data-test="terminal-error"]').text()
+    expect(text).toMatch(/access identity has expired/)
+    expect(text).toMatch(/Replace/)
+  })
+
   it('needs a node and a login', async () => {
     const create = vi.spyOn(accessApi, 'create')
     const w = await open('')

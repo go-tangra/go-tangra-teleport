@@ -13,13 +13,6 @@ spec:
     db_labels: { '*': '*' }
     kubernetes_labels: { '*': '*' }
     windows_desktop_labels: { '*': '*' }
-    # Brokered access (spec 004): obtain short-lived certificates as the
-    # Teleport users the platform provisioned (labelled tangra.io/managed),
-    # never as a local user such as the cluster administrator.
-    impersonate:
-      users: ['*']
-      roles: ['*']
-      where: 'equals(impersonate_user.metadata.labels["tangra.io/managed"], "true")'
     rules:
       - resources: [user, role, lock, token]
         verbs: [list, read, create, update, delete]

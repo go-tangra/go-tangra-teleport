@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/secrets"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/teleportapi/identitytest"
 )
 
 // An access denial keeps the teleport_rejected reason (HTTP mapping is
@@ -84,5 +85,24 @@ func TestParseIdentityAt(t *testing.T) {
 	}
 	if _, err := ParseIdentityAt(secrets.NewSecret([]byte(raw)), exp.Add(time.Second)); !errors.Is(err, ErrCredentialInvalid) {
 		t.Fatalf("expired at the given clock: %v", err)
+	}
+}
+
+// An impersonated identity (tctl auth sign) names its impersonator in the
+// TLS subject and in the SSH certificate; a sign-in identity has none
+// (spec 005 R2).
+func TestParseIdentityImpersonator(t *testing.T) {
+	signIn := identitytest.New(t, identitytest.Options{User: "tangra-access"})
+	id, err := ParseIdentity(secrets.NewSecret([]byte(signIn)))
+	if err != nil || id.Impersonator != "" || id.Subject != "tangra-access" {
+		t.Fatalf("sign-in identity %+v %v", id, err)
+	}
+	signed := identitytest.New(t, identitytest.Options{Impersonator: "abc.prod.example.com"})
+	if id, err = ParseIdentity(secrets.NewSecret([]byte(signed))); err != nil || id.Impersonator != "abc.prod.example.com" {
+		t.Fatalf("tctl identity %+v %v", id, err)
+	}
+	sshOnly := identitytest.New(t, identitytest.Options{Impersonator: "abc.prod.example.com", ImpersonatorSSHOnly: true})
+	if id, err = ParseIdentity(secrets.NewSecret([]byte(sshOnly))); err != nil || id.Impersonator != "abc.prod.example.com" {
+		t.Fatalf("ssh-only impersonator %+v %v", id, err)
 	}
 }

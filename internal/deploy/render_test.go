@@ -95,28 +95,48 @@ func TestRenderedArtifacts(t *testing.T) {
 	if err := yaml.Unmarshal(role, &r); err != nil || r["kind"] != "role" {
 		t.Fatalf("role %v %v", r, err)
 	}
-	// Spec 004 R1: impersonation is bounded by Teleport to managed users.
+	// Spec 005: the management role no longer impersonates; the
+	// tangra-access role holds only the impersonate rule, bounded by
+	// Teleport to managed users, and a long session lifetime.
+	type impersonate struct {
+		Users, Roles []string
+		Where        string
+	}
 	var rv struct {
 		Spec struct {
-			Allow struct {
-				Impersonate struct {
-					Users, Roles []string
-					Where        string
-				}
+			Options map[string]any
+			Allow   struct {
+				Impersonate *impersonate
+				Rules       []map[string]any
+				Logins      []string
 			}
 		}
 	}
 	if err := yaml.Unmarshal(role, &rv); err != nil {
 		t.Fatal(err)
 	}
+	if rv.Spec.Allow.Impersonate != nil || bytes.Contains(role, []byte("impersonate")) {
+		t.Fatalf("the management role still impersonates:\n%s", role)
+	}
+	access, err := deploy.Render("tangra-access-role.yaml", acme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv.Spec.Allow.Impersonate, rv.Spec.Allow.Rules = nil, nil
+	if err := yaml.Unmarshal(access, &rv); err != nil {
+		t.Fatal(err)
+	}
 	imp := rv.Spec.Allow.Impersonate
-	if imp.Where != `equals(impersonate_user.metadata.labels["tangra.io/managed"], "true")` || len(imp.Users) != 1 || len(imp.Roles) != 1 {
-		t.Fatalf("impersonate rule %+v", imp)
+	if imp == nil || imp.Where != `equals(impersonate_user.metadata.labels["tangra.io/managed"], "true")` || len(imp.Users) != 1 || len(imp.Roles) != 1 ||
+		len(rv.Spec.Allow.Rules) != 0 || len(rv.Spec.Allow.Logins) != 0 || rv.Spec.Options["max_session_ttl"] != "8760h" {
+		t.Fatalf("tangra-access role %+v", rv)
 	}
 	cmds, _ := deploy.Render("setup-commands.txt", acme)
 	for _, want := range []string{"tctl users add admin --roles=editor,access,auditor --logins=root,ubuntu",
 		"tctl create -f tangra-manager-role.yaml", "tctl users add tangra-mgmt --roles=tangra-manager",
-		"tctl auth sign --user=tangra-mgmt --format=file --ttl=720h --out=tangra-mgmt.identity", "tp.example.test:443"} {
+		"tctl auth sign --user=tangra-mgmt --format=file --ttl=720h --out=tangra-mgmt.identity", "tp.example.test:443",
+		"tctl create -f tangra-access-role.yaml", "tctl users add tangra-access --roles=tangra-access",
+		"tsh login --proxy=tp.example.test:443 --user=tangra-access --ttl=525600 --format=file --out=tangra-access.identity"} {
 		if !bytes.Contains(cmds, []byte(want)) {
 			t.Errorf("setup-commands.txt lacks %q", want)
 		}
@@ -142,6 +162,19 @@ func TestManagerRoleMatchesTheReference(t *testing.T) {
 	role, _ := deploy.Render("tangra-manager-role.yaml", acme)
 	if m == nil || !bytes.Equal(bytes.TrimSpace(m[1]), bytes.TrimSpace(role)) {
 		t.Fatalf("tangra-manager-role.yaml differs from docs/help/reference/tangra-manager-role.md:\n%s", role)
+	}
+}
+
+// The access role artifact is the role the reference page documents.
+func TestAccessRoleMatchesTheReference(t *testing.T) {
+	doc, err := os.ReadFile(filepath.Join("..", "..", "docs", "help", "reference", "tangra-access-role.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile("(?s)```yaml\n(kind: role.*?)```").FindSubmatch(doc)
+	role, _ := deploy.Render("tangra-access-role.yaml", acme)
+	if m == nil || !bytes.Equal(bytes.TrimSpace(m[1]), bytes.TrimSpace(role)) {
+		t.Fatalf("tangra-access-role.yaml differs from docs/help/reference/tangra-access-role.md:\n%s", role)
 	}
 }
 

@@ -77,27 +77,47 @@ administrator changed it; Teleport may shorten it further with your roles'
 
 - **Access lifetime.** The cluster's **Settings** tab sets the lifetime of
   issued access, 15 minutes to 12 hours (`clusters:manage`).
-- **The management role must allow impersonation of managed users.**
-  Clusters registered before this feature need the current
-  [tangra-manager role](../reference/tangra-manager-role.md); until then the
-  portal answers *management role outdated*.
-- **The management identity must come from a sign-in.** Teleport never lets
-  an impersonated certificate impersonate again, and every identity made
-  with `tctl auth sign` is one. For brokered access, register an identity
-  obtained by signing in as the management user:
+- **The access identity.** Terminals and downloads are issued with the
+  cluster's [access identity](../reference/tangra-access-role.md): a
+  `tsh login` identity of the Teleport user `tangra-access`, whose role may
+  only impersonate provisioned users. Upload it on the cluster overview
+  (**Access identity for portal terminals**, `clusters:manage`); the panel
+  shows its expiry and the exact `tsh login` command. Without it the portal
+  answers *access identity missing* (unless the management identity itself
+  came from a sign-in), and after it expires *access identity expired*.
+  The platform warns before it expires like it does for the management
+  credential.
 
-  ```
-  tsh login --proxy=teleport.example.com:443 --user=tangra-mgmt --out=tangra-mgmt.identity --format=file
-  ```
+### Setting it up on an existing cluster
 
-  (The management user needs a password and a second factor for this; its
-  lifetime is bounded by the role's `max_session_ttl`, so rotate it before
-  it expires.) With a `tctl auth sign` identity everything else keeps
-  working and the portal answers *management identity unsuitable*.
+On a cluster registered before the access identity existed, in this order:
+
+1. Create the role and the user (the role YAML is in the
+   [reference](../reference/tangra-access-role.md) and in the deployment
+   wizard's `tangra-access-role.yaml`):
+
+   ```bash
+   tctl create -f tangra-access-role.yaml
+   tctl users add tangra-access --roles=tangra-access
+   ```
+
+2. Open the invite link and set a password and a second factor.
+3. Sign in once and write the identity file:
+
+   ```bash
+   tsh login --proxy=teleport.example.com:443 --user=tangra-access --ttl=525600 --format=file --out=tangra-access.identity
+   ```
+
+4. Upload `tangra-access.identity` on the cluster overview, then delete it.
+   Open a terminal to check it works.
+5. Apply the current [tangra-manager role](../reference/tangra-manager-role.md)
+   (`tctl create -f tangra-manager-role.yaml`), which no longer impersonates.
 
 ## What is recorded
 
-Every download and refusal is an audit entry
+Uploading, replacing and removing the access identity are audit entries
+(`teleport.access_identity.upload`, `.replace`, `.delete`). Every download
+and refusal is an audit entry
 (`teleport.access.issued`), and every terminal has a start and an end entry
 (`teleport.terminal.started`, `teleport.terminal.ended`, with the reason it
 ended and its duration). Entries name your Teleport user, the node and the

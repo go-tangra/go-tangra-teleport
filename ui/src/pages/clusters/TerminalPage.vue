@@ -32,6 +32,13 @@ const END_TEXT: Record<string, string> = {
   error: 'The connection to the node failed.',
 }
 
+/** Refusals of the cluster's access identity (spec 005), with what to do. */
+const IDENTITY_HINT: Record<string, string> = {
+  access_identity_missing: 'An administrator can upload it on the cluster page under "Access identity for portal terminals".',
+  access_identity_expired: 'An administrator can renew it: sign in again with the tsh login command shown on the cluster page and choose Replace.',
+  access_identity_invalid: 'An administrator can check the tangra-access role on the cluster and replace the identity on the cluster page.',
+}
+
 const route = useRoute()
 const router = useRouter()
 // Fixed at open: the route changes before the page unmounts.
@@ -186,7 +193,8 @@ onMounted(async () => {
   try {
     view.value = await accessApi.create(clusterId, { node, login, cols: size.cols, rows: size.rows })
   } catch (e) {
-    error.value = explain(e)
+    const hint = IDENTITY_HINT[(e as { reason?: string }).reason ?? '']
+    error.value = hint ? `${explain(e)} ${hint}` : explain(e)
     starting.value = false
     return
   }

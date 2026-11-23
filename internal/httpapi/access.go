@@ -20,10 +20,12 @@ var (
 	ErrNotProvisioned     = &Error{http.StatusConflict, "not_provisioned"}
 	ErrUserLocked         = &Error{http.StatusConflict, "user_locked"}
 	ErrSessionMFARequired = &Error{http.StatusUnprocessableEntity, "session_mfa_required"}
-	ErrRoleOutdated       = &Error{http.StatusUnprocessableEntity, "management_role_outdated"}
-	ErrIdentityUnsuitable = &Error{http.StatusUnprocessableEntity, "management_identity_unsuitable"}
-	ErrTooManyTerminals   = &Error{http.StatusTooManyRequests, "too_many"}
-	ErrTerminalEnded      = &Error{http.StatusConflict, "terminal_ended"}
+	// Spec 005: the access identity brokered access issues with.
+	ErrAccessIdentityMissing = &Error{http.StatusUnprocessableEntity, "access_identity_missing"}
+	ErrAccessIdentityExpired = &Error{http.StatusUnprocessableEntity, "access_identity_expired"}
+	ErrAccessIdentityInvalid = &Error{http.StatusUnprocessableEntity, "access_identity_invalid"}
+	ErrTooManyTerminals      = &Error{http.StatusTooManyRequests, "too_many"}
+	ErrTerminalEnded         = &Error{http.StatusConflict, "terminal_ended"}
 )
 
 // failAccess answers an access refusal with its reason and a message for
@@ -39,11 +41,14 @@ func (s *Server) failAccess(w http.ResponseWriter, r *http.Request, err error) {
 		msg(ErrUserLocked, "your Teleport user on this cluster is locked")
 	case errors.Is(err, access.ErrSessionMFARequired):
 		msg(ErrSessionMFARequired, "a role of your Teleport user requires Teleport's per-session MFA; use tsh login on this cluster")
-	case errors.Is(err, access.ErrRoleOutdated):
-		msg(ErrRoleOutdated, "the cluster's management role cannot impersonate managed users: apply the current tangra-manager role")
-	case errors.Is(err, access.ErrIdentityUnsuitable):
-		msg(ErrIdentityUnsuitable, "the cluster's management identity was made with tctl auth sign, which Teleport never lets impersonate: "+
-			"register an identity from tsh login as the management user")
+	case errors.Is(err, access.ErrAccessIdentityMissing):
+		msg(ErrAccessIdentityMissing, "portal access needs the cluster's access identity: an administrator must upload a tsh login identity "+
+			"of tangra-access on the cluster page")
+	case errors.Is(err, access.ErrAccessIdentityExpired):
+		msg(ErrAccessIdentityExpired, "the cluster's access identity has expired: an administrator must sign in as tangra-access again and replace it")
+	case errors.Is(err, access.ErrAccessIdentityInvalid):
+		msg(ErrAccessIdentityInvalid, "Teleport rejected the cluster's access identity: an administrator must check the tangra-access role "+
+			"and replace the identity")
 	case errors.Is(err, access.ErrInvalid):
 		WriteDetail(w, ErrValidation, map[string]any{"field": "ttl_minutes",
 			"message": "must be 15 to 720 minutes"})

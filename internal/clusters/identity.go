@@ -21,6 +21,9 @@ type Identity struct {
 	Username    string    // the Teleport user the module signs in as (FR-013 self-lockout guard)
 	IssuedAt    time.Time // certificate NotBefore
 	ExpiresAt   time.Time // certificate NotAfter
+	// Impersonator is set for an impersonated identity (tctl auth sign);
+	// empty for a sign-in identity (spec 005).
+	Impersonator string
 }
 
 // Lifetime is the certificate validity period.
@@ -47,5 +50,6 @@ func ParseIdentity(raw []byte, now time.Time) (Identity, error) {
 	if id.Subject == "" || len(id.Subject) > maxUsername || id.ClusterName == "" {
 		return Identity{}, teleportapi.ErrCredentialInvalid
 	}
-	return Identity{ClusterName: id.ClusterName, Username: id.Subject, IssuedAt: id.IssuedAt, ExpiresAt: id.ExpiresAt}, nil
+	return Identity{ClusterName: id.ClusterName, Username: id.Subject, IssuedAt: id.IssuedAt, ExpiresAt: id.ExpiresAt,
+		Impersonator: id.Impersonator}, nil
 }

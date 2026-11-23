@@ -19,13 +19,15 @@ var (
 	// ErrSessionMFARequired: a role of the user (or the cluster) requires
 	// Teleport's own per-session MFA, which brokered access cannot satisfy (R9).
 	ErrSessionMFARequired = &refusal{"session_mfa_required", "access: per-session MFA required"}
-	// ErrRoleOutdated: Teleport refused the impersonation: the management
-	// role lacks the impersonate rule (FR-019).
-	ErrRoleOutdated = &refusal{"management_role_outdated", "access: the management role cannot impersonate managed users"}
-	// ErrIdentityUnsuitable: the management identity is itself an
-	// impersonated certificate (a tctl auth sign identity), which Teleport
-	// never lets impersonate (plan.md Deviations D1).
-	ErrIdentityUnsuitable = &refusal{"management_identity_unsuitable", "access: the management identity cannot impersonate"}
+	// ErrAccessIdentityMissing: the cluster has no access identity (spec
+	// 005) and Teleport refused the management identity's impersonation
+	// (a tctl auth sign identity, or a role without the impersonate rule).
+	ErrAccessIdentityMissing = &refusal{"access_identity_missing", "access: the cluster has no access identity"}
+	// ErrAccessIdentityExpired: the cluster's access identity has expired.
+	ErrAccessIdentityExpired = &refusal{"access_identity_expired", "access: the cluster's access identity has expired"}
+	// ErrAccessIdentityInvalid: Teleport rejected the cluster's access
+	// identity or refused its impersonation (the tangra-access role).
+	ErrAccessIdentityInvalid = &refusal{"access_identity_invalid", "access: the cluster's access identity cannot issue access"}
 	// ErrInvalid: a lifetime outside 15..720 minutes.
 	ErrInvalid = &refusal{"validation_failed", "access: invalid request"}
 )

@@ -499,9 +499,36 @@ type AccessSettingsStore interface {
 	PutAccessSettings(ctx context.Context, s AccessSettings) error
 }
 
+// AccessIdentity is a cluster's access identity (spec 005): the sign-in
+// identity brokered access issues certificates with. The identity itself is
+// in the secret store; CredentialRef is never returned by the API.
+type AccessIdentity struct {
+	ClusterID     string
+	TenantID      string
+	CredentialRef string
+	TeleportUser  string
+	IssuedAt      time.Time // certificate NotBefore
+	ExpiresAt     time.Time // certificate NotAfter
+	UpdatedAt     time.Time
+	UpdatedBy     string
+}
+
+// AccessIdentityStore is the cluster access identity surface (one per cluster).
+type AccessIdentityStore interface {
+	// GetAccessIdentity returns the cluster's access identity (ErrNotFound
+	// when none is configured).
+	GetAccessIdentity(ctx context.Context, tenantID, clusterID string) (AccessIdentity, error)
+	// PutAccessIdentity upserts it (ErrNotFound when the cluster is not the
+	// tenant's).
+	PutAccessIdentity(ctx context.Context, a AccessIdentity) error
+	// DeleteAccessIdentity removes it (ErrNotFound when none).
+	DeleteAccessIdentity(ctx context.Context, tenantID, clusterID string) error
+}
+
 // Store is the full persistence contract.
 type Store interface {
 	AccessSettingsStore
+	AccessIdentityStore
 	Clusters
 	JoinTokens
 	Snapshots
