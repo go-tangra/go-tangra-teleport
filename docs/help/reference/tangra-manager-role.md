@@ -46,7 +46,7 @@ spec:
 |---|---|
 | `user`, `role`, `lock`, `token` (read and write) | Managing users, roles, locks and join tokens from the platform |
 | `node`, `app_server`, `db_server`, `kube_server`, `windows_desktop` (read) | The resource list, health counts and inventory links |
-| `event`, `session` (read) | Audit event search, session lists and alert rules |
+| `event`, `session` (read) | Audit event search, session lists, alert rules and playing recorded sessions in the portal |
 | `cluster_auth_preference` (read) | Showing how the cluster authenticates users |
 
 The role grants no logins, so the management identity cannot open an SSH,

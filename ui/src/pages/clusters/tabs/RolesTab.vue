@@ -194,7 +194,7 @@ async function remove(r: TeleportRole): Promise<void> {
       <template #actions>
         <UiButton variant="text" @click="open = false">Close</UiButton>
         <template v-if="can('update') && !cluster.writes_blocked">
-          <UiButton variant="soft" :loading="busy" icon="mdi-file-compare" data-test="role-preview" @click="runPreview">Preview changes</UiButton>
+          <UiButton variant="soft" :loading="busy" icon="mdi-file-search-outline" data-test="role-preview" @click="runPreview">Preview changes</UiButton>
           <UiButton :disabled="!preview?.valid || !preview.diff" :loading="busy" data-test="role-apply" @click="apply">Apply</UiButton>
         </template>
       </template>

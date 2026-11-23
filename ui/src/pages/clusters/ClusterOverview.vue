@@ -37,15 +37,15 @@ const canRead = (subject: string) => (ability ? ability.can('read', subject) : t
 
 const tab = ref('overview')
 const tabs = computed<TabItem[]>(() => [
-  { key: 'overview', label: 'Overview', icon: 'mdi-heart-pulse' },
-  ...(canRead('TeleportUser') ? [{ key: 'users', label: 'Users', icon: 'mdi-account-multiple' }] : []),
+  { key: 'overview', label: 'Overview', icon: 'mdi-pulse' },
+  ...(canRead('TeleportUser') ? [{ key: 'users', label: 'Users', icon: 'mdi-account-multiple-outline' }] : []),
   ...(canRead('TeleportRole') ? [{ key: 'roles', label: 'Roles', icon: 'mdi-shield-account' }] : []),
-  ...(canRead('TeleportLock') ? [{ key: 'locks', label: 'Locks', icon: 'mdi-lock' }] : []),
+  ...(canRead('TeleportLock') ? [{ key: 'locks', label: 'Locks', icon: 'mdi-lock-outline' }] : []),
   ...(canRead('TeleportResource') ? [{ key: 'resources', label: 'Resources', icon: 'mdi-server-network' }] : []),
-  ...(!ability || ability.can('manage', 'TeleportToken') ? [{ key: 'tokens', label: 'Join tokens', icon: 'mdi-key-chain' }] : []),
-  ...(canRead('TeleportAudit') ? [{ key: 'events', label: 'Events', icon: 'mdi-text-box-search-outline' }] : []),
-  ...(canRead('TeleportAudit') ? [{ key: 'sessions', label: 'Sessions', icon: 'mdi-play-box-multiple-outline' }] : []),
-  ...(canRead('TeleportManagedUser') ? [{ key: 'provisioning', label: 'Provisioning', icon: 'mdi-account-sync' }] : []),
+  ...(!ability || ability.can('manage', 'TeleportToken') ? [{ key: 'tokens', label: 'Join tokens', icon: 'mdi-key-variant' }] : []),
+  ...(canRead('TeleportAudit') ? [{ key: 'events', label: 'Events', icon: 'mdi-file-search-outline' }] : []),
+  ...(canRead('TeleportAudit') ? [{ key: 'sessions', label: 'Sessions', icon: 'mdi-play-circle-outline' }] : []),
+  ...(canRead('TeleportManagedUser') ? [{ key: 'provisioning', label: 'Provisioning', icon: 'mdi-sync' }] : []),
 ])
 
 const id = computed(() => String(route.params.id ?? ''))
@@ -144,8 +144,8 @@ const severity = computed(() => {
   <UiPage :title="cluster?.display_name ?? 'Cluster'" subtitle="Teleport cluster health">
     <template #actions>
       <UiButton variant="text" icon="mdi-arrow-left" @click="router.push({ name: 'teleport-clusters' })">Clusters</UiButton>
-      <UiButton variant="soft" icon="mdi-heart-pulse" :loading="checking" :disabled="!cluster" data-test="cluster-check" @click="checkNow">Check now</UiButton>
-      <UiButton v-if="can('rotate')" variant="soft" icon="mdi-key-change" :disabled="!cluster" data-test="cluster-rotate" @click="rotating = true">Rotate credential</UiButton>
+      <UiButton variant="soft" icon="mdi-pulse" :loading="checking" :disabled="!cluster" data-test="cluster-check" @click="checkNow">Check now</UiButton>
+      <UiButton v-if="can('rotate')" variant="soft" icon="mdi-autorenew" :disabled="!cluster" data-test="cluster-rotate" @click="rotating = true">Rotate credential</UiButton>
       <UiButton v-if="can('update')" variant="soft" icon="mdi-pencil" :disabled="!cluster" data-test="cluster-edit" @click="startEdit">Edit</UiButton>
       <UiButton v-if="can('delete')" color="error" variant="soft" icon="mdi-delete-outline" :disabled="!cluster" data-test="cluster-remove" @click="remove">Remove</UiButton>
     </template>
@@ -171,10 +171,10 @@ const severity = computed(() => {
         <UiAlert v-if="cluster.status_reason" :kind="severity" class="mt-3" data-test="cluster-status-reason">{{ cluster.status_reason }}</UiAlert>
       </UiCard>
       <UiStatGrid :cols="4" data-test="cluster-counts">
-        <UiStatTile title="Users" :value="cluster.counts.users" icon="mdi-account-multiple" />
+        <UiStatTile title="Users" :value="cluster.counts.users" icon="mdi-account-multiple-outline" />
         <UiStatTile title="Roles" :value="cluster.counts.roles" icon="mdi-shield-account" />
         <UiStatTile title="Servers" :value="cluster.counts.nodes" icon="mdi-server" />
-        <UiStatTile title="Apps, databases, Kubernetes, desktops" :value="cluster.counts.apps + cluster.counts.dbs + cluster.counts.kube + cluster.counts.desktops" icon="mdi-apps" />
+        <UiStatTile title="Apps, databases, Kubernetes, desktops" :value="cluster.counts.apps + cluster.counts.dbs + cluster.counts.kube + cluster.counts.desktops" icon="mdi-view-module-outline" />
       </UiStatGrid>
       <UiCard title="Details">
         <UiKeyValueTable :items="details" :columns="2" />

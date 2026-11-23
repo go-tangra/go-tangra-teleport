@@ -84,6 +84,10 @@ const (
 	DeploymentCheck    Action = "teleport.deployment.check"
 	DeploymentArtifact Action = "teleport.deployment.artifact"
 
+	// SessionPlayed is the start of an in-portal playback of a recorded
+	// session (spec 003); the row names the session, never its content.
+	SessionPlayed Action = "teleport.session.played"
+
 	BackupExport Action = "teleport.backup.export"
 	BackupImport Action = "teleport.backup.import"
 
@@ -103,6 +107,7 @@ var Vocabulary = []Action{
 	ProvisionCreate, ProvisionSync, ProvisionLock, ProvisionDelete,
 	AlertRuleCreate, AlertRuleUpdate, AlertRuleDelete, AlertDeliver,
 	DeploymentCreate, DeploymentUpdate, DeploymentDelete, DeploymentCheck, DeploymentArtifact,
+	SessionPlayed,
 	BackupExport, BackupImport,
 	AccessRefused,
 }
@@ -123,13 +128,14 @@ const (
 	TargetAlertRule   = "alert_rule"
 	TargetDeployment  = "deployment"
 	TargetBackup      = "backup"
+	TargetSession     = "session"
 	TargetSystem      = "system"
 )
 
 // TargetKinds lists every target kind.
 var TargetKinds = []string{
 	TargetCluster, TargetCredential, TargetUser, TargetRole, TargetLock, TargetToken, TargetEnrollment, TargetResource, TargetLink,
-	TargetMapping, TargetManagedUser, TargetAlertRule, TargetDeployment, TargetBackup, TargetSystem,
+	TargetMapping, TargetManagedUser, TargetAlertRule, TargetDeployment, TargetBackup, TargetSession, TargetSystem,
 }
 
 // Outcomes (closed set, data-model audit_event). unknown is for a Teleport

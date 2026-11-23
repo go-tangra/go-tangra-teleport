@@ -26,7 +26,7 @@ var ctx = context.Background()
 var contractPermissions = []string{
 	"clusters:read", "clusters:manage", "users:read", "users:manage", "roles:read", "roles:manage",
 	"locks:read", "locks:manage", "tokens:manage", "resources:read", "resources:link", "resources:enroll", "audit:read",
-	"alerts:read", "alerts:manage", "provisioning:manage", "deployments:manage",
+	"alerts:read", "alerts:manage", "provisioning:manage", "deployments:manage", "sessions:play",
 }
 
 func TestPermissionsMatchContract(t *testing.T) {
@@ -106,7 +106,8 @@ func TestActorKinds(t *testing.T) {
 	if w.IsHuman() || w.ActorID() != "provisioning-sync" || w.ActorKind != ActorWorker {
 		t.Fatalf("worker %+v", w)
 	}
-	for _, p := range []string{RolesManage, DeploymentsManage, TokensManage} {
+	// Spec 003 R13: watching a recording is human-only.
+	for _, p := range []string{RolesManage, DeploymentsManage, TokensManage, SessionsPlay} {
 		if Allowed(ctx, nil, w, p) {
 			t.Errorf("worker allowed %s", p)
 		}

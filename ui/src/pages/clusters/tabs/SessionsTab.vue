@@ -3,8 +3,14 @@
 // start and duration, newest first, with a deep link that opens playback in
 // the Teleport web UI (a new tab, without opener). Teleport-supplied text is
 // rendered as text only (SR-004); the link comes from the module, which
-// builds it only for safe session ids.
-import { onMounted, ref } from 'vue'
+// builds it only for safe session ids. SSH sessions the module marks
+// playable also get "Play", which opens the portal player (spec 003) — only
+// for callers with the sessions:play ability; the Teleport link stays for
+// every session.
+import { inject, onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
+import { ABILITY_TOKEN } from '@casl/vue'
+import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiSelect, type Column } from '@go-tangra/ui'
 import { explain } from '@/api/client'
 import type { Cluster, TeleportSession } from '@/api/types'
@@ -12,6 +18,9 @@ import { auditApi, durationText, lastWindow, MAX_WINDOW_MS, type SessionQuery } 
 import { formatTime } from '../status'
 
 const props = defineProps<{ cluster: Cluster }>()
+const ability = inject<AnyAbility | null>(ABILITY_TOKEN, null)
+// Without an ability provider (standalone dev) the server stays the judge.
+const canPlay = ability ? ability.can('play', 'TeleportSession') : true
 
 const RANGES = [
   { title: 'Last 24 hours', value: '86400000' },
@@ -43,6 +52,13 @@ async function load(more = false): Promise<void> {
 }
 onMounted(() => void load())
 
+/** The portal player, with the known duration so the timeline is complete at once (R10). */
+const playRoute = (s: TeleportSession) => ({
+  name: 'teleport-session-play',
+  params: { id: props.cluster.id, sid: s.sid },
+  query: { d: String(s.duration_s) },
+})
+
 /** Only https links from the module are opened. */
 const safeLink = (s: TeleportSession) => (s.playback_url && s.playback_url.startsWith('https://') ? s.playback_url : '')
 
@@ -53,7 +69,7 @@ const columns: Column<TeleportSession>[] = [
   { key: 'participants', label: 'Participants', format: (s) => s.participants.join(', ') || '—' },
   { key: 'duration_s', label: 'Duration', width: 'sm', format: (s) => durationText(s.duration_s) },
   { key: 'sid', label: 'Session', hideOnStack: true },
-  { key: 'actions', label: '', width: 'sm' },
+  { key: 'actions', label: '', width: 'md' },
 ]
 </script>
 
@@ -69,9 +85,12 @@ const columns: Column<TeleportSession>[] = [
           <UiBadge>{{ KINDS[row.kind] ?? row.kind }}</UiBadge>
         </template>
         <template #cell-actions="{ row }">
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-1">
+            <RouterLink v-if="canPlay && row.playable" :to="playRoute(row)" class="btn btn-sm btn-soft btn-primary" :data-test="'session-player-' + row.sid">
+              Play
+            </RouterLink>
             <a v-if="safeLink(row)" :href="safeLink(row)" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-text" :data-test="'session-play-' + row.sid">
-              Play in Teleport
+              Open in Teleport
             </a>
           </div>
         </template>

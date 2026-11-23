@@ -1,6 +1,6 @@
 ---
 title: Known limitations
-summary: What the Teleport module cannot do yet - production cluster registration, provisioning, automatic inventory and asset linking, credential kinds and session playback - and what to do meanwhile.
+summary: What the Teleport module cannot do yet - production cluster registration, provisioning, automatic inventory and asset linking, credential kinds and non-SSH session playback - and what to do meanwhile.
 kind: faq
 order: 95
 tags: [teleport, limitations, faq, warden, provisioning, links, playback]
@@ -61,12 +61,16 @@ cluster page and the notifications warn you in advance. Choose the TTL
 with that in mind, for example `--ttl=720h` and a monthly rotation. See
 [register an existing cluster](examples/register-cluster.md#rotate-before-it-expires).
 
-### Session playback is in the Teleport web UI
+### Only SSH sessions play in the portal
 
-The **Sessions** tab lists recorded sessions, but recordings are not
-played inside the portal. **Play in Teleport** opens the recording in the
-Teleport web UI, where you sign in with your own Teleport account and need
-Teleport's permission to view recordings.
+SSH terminal sessions play inside the portal with `sessions:play` (see
+[play recorded SSH sessions](guides/session-playback.md)). Desktop,
+Kubernetes, database and application sessions, and recordings over
+500 MiB, still open in the Teleport web UI (**Open in Teleport**), where
+you sign in with your own Teleport account. Sessions still in progress
+cannot be watched live. Several replicas of the module do not share
+playbacks: if a page goes to another replica the player starts the
+playback again.
 
 ### Smaller limits
 

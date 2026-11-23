@@ -270,6 +270,48 @@ func (f *Fake) SearchSessions(_ context.Context, q EventQuery) (Page[AuditEvent]
 	return search(f.SessionEvents, q)
 }
 
+// StreamRecording implements Client over Recordings.
+func (f *Fake) StreamRecording(ctx context.Context, sid string, start int64) (<-chan RecordingEvent, <-chan error) {
+	f.mu.Lock()
+	err := f.enter("StreamRecording")
+	rec, ok := f.Recordings[sid]
+	rec = slices.Clone(rec)
+	cut := f.RecordingErr[sid]
+	f.mu.Unlock()
+	switch {
+	case err != nil:
+		return streamFailed(err)
+	case !ok:
+		return streamFailed(trace.NotFound("session recording %q not found", sid))
+	}
+	out, errs := make(chan RecordingEvent), make(chan error, 1)
+	go func() {
+		defer close(errs)
+		defer close(out)
+		for i := start; i >= 0 && i < int64(len(rec)); i++ {
+			e := rec[i]
+			e.Index = i
+			if ctx.Err() != nil {
+				errs <- ctx.Err()
+				return
+			}
+			select {
+			case out <- e:
+			case <-ctx.Done():
+				errs <- ctx.Err()
+				return
+			}
+		}
+		switch {
+		case ctx.Err() != nil:
+			errs <- ctx.Err()
+		case cut != nil:
+			errs <- cut
+		}
+	}()
+	return out, errs
+}
+
 // CAPins implements Client from CACerts (a fixed test CA when unset).
 func (f *Fake) CAPins(_ context.Context) ([]string, error) {
 	f.mu.Lock()

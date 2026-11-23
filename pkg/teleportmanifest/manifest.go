@@ -58,6 +58,7 @@ var Permissions = []gatewayclient.Permission{
 	{Resource: "alerts", Action: "manage", Description: "Create, edit and delete alert rules"},
 	{Resource: "provisioning", Action: "manage", Description: "Manage role mappings and provision or de-provision Tangra users"},
 	{Resource: "deployments", Action: "manage", Description: "Use the deployment wizard: drafts, artifacts and checks"},
+	{Resource: "sessions", Action: "play", Description: "Replay recorded SSH sessions in the portal (shows everything that was on the terminal)"},
 }
 
 // PermissionRefs lists "resource:action" for every declared permission.
@@ -93,7 +94,7 @@ var (
 var Roles = []authclient.ModuleRole{
 	{
 		Slug: "administrator", DisplayName: DisplayName + " administrator",
-		Description: "Manage clusters, users, roles, locks, tokens, links, alerts, provisioning and deployments",
+		Description: "Manage clusters, users, roles, locks, tokens, links, alerts, provisioning and deployments; play recorded sessions",
 		Permissions: administratorPermissions,
 	},
 	{
@@ -149,14 +150,15 @@ var Abilities = []gatewayclient.Ability{
 	{Action: []string{"create", "update", "delete"}, Subject: []string{"TeleportAlertRule"}, Requires: "alerts:manage"},
 	{Action: []string{"manage"}, Subject: []string{"TeleportProvisioning", "TeleportMapping"}, Requires: "provisioning:manage"},
 	{Action: []string{"manage"}, Subject: []string{"TeleportDeployment"}, Requires: "deployments:manage"},
+	{Action: []string{"play"}, Subject: []string{"TeleportSession"}, Requires: "sessions:play"},
 }
 
 // Nav lists the navigation contributions.
 var Nav = []gatewayclient.NavEntry{
-	{Title: "Clusters", Path: "/teleport", Icon: "mdi-server-security", Order: 990, Requires: "clusters:read"},
-	{Title: "Alerts", Path: "/teleport/alerts", Icon: "mdi-bell-alert-outline", Order: 992, Requires: "alerts:read"},
+	{Title: "Clusters", Path: "/teleport", Icon: "mdi-shield-key-outline", Order: 990, Requires: "clusters:read"},
+	{Title: "Alerts", Path: "/teleport/alerts", Icon: "mdi-bell-outline", Order: 992, Requires: "alerts:read"},
 	{Title: "Audit", Path: "/teleport/audit", Icon: "mdi-clipboard-text-clock-outline", Order: 994, Requires: "audit:read"},
-	{Title: "Deployments", Path: "/teleport/deployments", Icon: "mdi-rocket-launch-outline", Order: 996, Requires: "deployments:manage"},
+	{Title: "Deployments", Path: "/teleport/deployments", Icon: "mdi-package-down", Order: 996, Requires: "deployments:manage"},
 }
 
 // Routes derives the gateway routes from the OpenAPI document.

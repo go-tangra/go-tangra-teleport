@@ -303,7 +303,7 @@ An administrator who has no cluster yet uses a guided wizard. They:
 - **Network reach**: the module reaches each cluster over the cluster's public proxy address (port 443). No direct network access to the cluster's internal services is needed.
 - **Tenancy**: clusters belong to exactly one tangra tenant, and cross-tenant cluster sharing is out of scope for v1.
 - **Source of truth**: Teleport stays the source of truth for its own users, roles, resources, audit events and session recordings. Tangra stores only registrations, links, mappings, rules, drafts and token metadata.
-- **No session replay in v1**: session recordings are listed, but playback happens in the Teleport web UI, reached by deep link.
+- **No session replay in v1**: session recordings are listed, but playback happens in the Teleport web UI, reached by deep link. *Superseded for SSH sessions by [003-session-playback](../003-session-playback/spec.md): SSH terminal sessions now play inside the portal with the `sessions:play` permission; other session kinds keep the deep link.*
 - **Deployment is guided, not executed**: the wizard produces artifacts and checks, and the administrator runs the install on the host. Running it remotely through other tangra modules may come later.
 - **Existing platform services**: tangra's existing authentication, permissions, secrets, notification, scheduler, inventory, asset, audit, backup and portal services are reused, not duplicated.
 - **Out of scope for v1**: SSO connector management, Access Requests, trusted clusters, Teleport plugin configuration, and Machine ID bot management beyond the module's own management identity.

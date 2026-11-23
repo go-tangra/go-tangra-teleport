@@ -22,4 +22,6 @@ export default defineConfig({
     setupFiles: ['tests/unit/setup.ts'],
     server: { deps: { inline: ['@go-tangra/ui'] } },
   },
+  // Tests only: the icon test reads the manifest's nav icons from ../pkg.
+  ...(process.env.VITEST ? { server: { fs: { allow: [fileURLToPath(new URL('..', import.meta.url))] } } } : {}),
 })

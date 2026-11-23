@@ -38,6 +38,11 @@ type Fake struct {
 	// SearchSessions (by time and type).
 	AuditEvents   []AuditEvent
 	SessionEvents []AuditEvent
+	// Recordings are streamed by StreamRecording by session id (an event's
+	// Index is its position); a missing id is trace.NotFound. RecordingErr
+	// is sent after a recording's events (a cut mid-playback).
+	Recordings   map[string][]RecordingEvent
+	RecordingErr map[string]error
 
 	// CACerts is the PEM the fake's CAPins reads (nil: one generated CA).
 	CACerts []byte

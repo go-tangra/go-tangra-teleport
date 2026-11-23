@@ -443,6 +443,10 @@ type Session struct {
 	StartedAt    time.Time `json:"started_at"`
 	DurationS    int64     `json:"duration_s"`
 	PlaybackURL  string    `json:"playback_url,omitempty"`
+	// Playable marks an SSH terminal session the portal player can replay
+	// (spec 003, internal/recording); the player itself refuses any
+	// recording that turns out not to be one.
+	Playable bool `json:"playable"`
 }
 
 // SessionPage is one page of sessions, newest first.
@@ -502,6 +506,7 @@ func sessionOf(c clustersView, e teleportapi.AuditEvent) Session {
 		s.DurationS = int64(d / time.Second)
 	}
 	s.PlaybackURL = PlaybackURL(c.proxy, c.name, s.SID)
+	s.Playable = s.Kind == KindSSH && safeID.MatchString(s.SID)
 	return s
 }
 

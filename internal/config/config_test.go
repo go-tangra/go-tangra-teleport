@@ -40,6 +40,10 @@ func TestDefaultSecure(t *testing.T) {
 	if d.Limits.MaxRequestBytes != 1<<20 || d.Limits.MaxUploadBytes != 64<<10 || d.Limits.MaxPageSize != 200 {
 		t.Fatalf("limits defaults: %+v", d.Limits)
 	}
+	// Spec 003 R7/R8: the playback bounds default to their maximum.
+	if r := d.Recording; r.MaxBytes != 500<<20 || r.MaxConcurrent != 8 || r.MaxPerUser != 2 {
+		t.Fatalf("recording defaults: %+v", r)
+	}
 	if d.Secrets.WardenService != "warden" || d.Gateway.Service != "gateway" {
 		t.Fatalf("peer defaults: %+v %+v", d.Secrets, d.Gateway)
 	}
@@ -69,6 +73,7 @@ func TestValidateOK(t *testing.T) {
 	c.Secrets.AllowFile, c.Secrets.FileDir = true, "/var/lib/teleport/secrets"
 	c.TaskScheduler.Enabled = true
 	c.Events.TenantStream, c.Events.TenantDeletedType = "platform:events:system", "auth.tenant.deleted"
+	c.Recording = Recording{MaxBytes: 1 << 20, MaxConcurrent: 1, MaxPerUser: 1} // lowered playback bounds
 	if err := c.Validate(); err != nil {
 		t.Fatalf("dev config rejected: %v", err)
 	}
@@ -118,6 +123,13 @@ func TestValidateRefuses(t *testing.T) {
 		"request bytes":    func(c *Config) { c.Limits.MaxRequestBytes = 1 },
 		"upload bytes":     func(c *Config) { c.Limits.MaxUploadBytes = 2 << 20 },
 		"page size":        func(c *Config) { c.Limits.MaxPageSize = 0 },
+		// The playback bounds can be lowered, never raised.
+		"recording bytes up":     func(c *Config) { c.Recording.MaxBytes = 501 << 20 },
+		"recording bytes zero":   func(c *Config) { c.Recording.MaxBytes = 0 },
+		"recording concurrent":   func(c *Config) { c.Recording.MaxConcurrent = 9 },
+		"recording no slots":     func(c *Config) { c.Recording.MaxConcurrent = 0 },
+		"recording per user":     func(c *Config) { c.Recording.MaxPerUser = 3 },
+		"recording per user > n": func(c *Config) { c.Recording.MaxConcurrent, c.Recording.MaxPerUser = 1, 2 },
 		"prod insecure enroll": func(c *Config) {
 			c.Env = "production"
 			c.DB.DSN += "?sslmode=verify-full"

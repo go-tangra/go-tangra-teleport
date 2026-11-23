@@ -165,7 +165,7 @@ async function remove(u: TeleportUser): Promise<void> {
         <template #cell-actions="{ row }">
           <div v-if="!isSelf(row) && writable" class="flex justify-end gap-1">
             <UiButton v-if="can('update')" size="sm" variant="text" icon="mdi-pencil" icon-only label="Edit" :data-test="'user-edit-' + row.name" @click="openEdit(row)" />
-            <UiButton v-if="can('reset')" size="sm" variant="text" icon="mdi-lock-reset" icon-only label="Reset" :data-test="'user-reset-' + row.name" @click="reset(row)" />
+            <UiButton v-if="can('reset')" size="sm" variant="text" icon="mdi-restart" icon-only label="Reset" :data-test="'user-reset-' + row.name" @click="reset(row)" />
             <UiButton v-if="can('delete')" size="sm" variant="text" color="error" icon="mdi-delete-outline" icon-only label="Delete" :data-test="'user-delete-' + row.name" @click="remove(row)" />
           </div>
         </template>

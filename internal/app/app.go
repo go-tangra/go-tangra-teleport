@@ -64,6 +64,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/netguard"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/notify"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/provisioning"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/recording"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/repo"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/repodb"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/resources"
@@ -142,6 +143,8 @@ type App struct {
 	AuditLog    *auditlog.Service  // US4: Teleport events and sessions, module audit trail
 	AlertRules  *alerts.Rules      // US4
 	AlertEngine *alerts.Engine     // US4: the leased alert poller
+	// Recording replays recorded SSH sessions in the portal (spec 003).
+	Recording *recording.Service
 	// Provisioning is US5. Auth publishes no membership events (research
 	// D10), so there is no consumer: the Phase 9 scheduler tasks call
 	// Provisioning.Reconcile and PurgeDeprovisioned.
@@ -216,7 +219,7 @@ func Build(ctx context.Context, cfg config.Config, o Options) (a *App, err error
 	}
 	a.HTTP.Register(httpapi.Deps{Health: a.health, Hub: a.Hub, Clusters: a.Clusters, Users: a.Users, Roles: a.Roles, Locks: a.Locks,
 		Tokens: a.Tokens, Resources: a.Resources, Audit: a.AuditLog, Alerts: a.AlertRules, Provisioning: a.Provisioning,
-		Deployments: a.Deployments, Enroll: a.Enroll})
+		Deployments: a.Deployments, Enroll: a.Enroll, Recording: a.Recording})
 	// Mesh gRPC surface (teleport.v1, SPIFFE mTLS; deploy/policy.yaml) and
 	// the scheduler task executor (svc/scheduler only).
 	grpcapi.Register(a.Freya.GRPC(), grpcapi.Deps{Resources: a.Resources, Enroll: a.Enroll, Audit: a.Audit})
@@ -451,6 +454,12 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 	a.AlertEngine = &alerts.Engine{Clusters: a.Clusters, Repo: a.Repo, Notify: a.Notify, Audit: a.Audit, Log: a.Log}
 	a.Alerter = a.AlertEngine
 	a.AddLeasedWorker("alert-poller", a.AlertEngine.Run)
+
+	// Spec 003: in-portal playback of recorded SSH sessions, read live from
+	// the cluster page by page. The cursor key is per process (a restart or
+	// another replica answers playback_expired); the bounds are per process.
+	a.Recording = &recording.Service{Clusters: a.Clusters, Audit: a.Audit, Signer: recording.NewSigner(),
+		Limiter: recording.NewLimiter(cfg.Recording.MaxConcurrent, cfg.Recording.MaxPerUser), MaxBytes: cfg.Recording.MaxBytes}
 
 	// US5: role mappings and provisioning. The auth SDK cannot list a
 	// tenant's members with their module roles, groups and login, so the

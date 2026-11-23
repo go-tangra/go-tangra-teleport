@@ -98,6 +98,7 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET /clusters/{id}/enrollments` | `resources:read` |
 | `GET /clusters/{id}/enrollment-targets`, `POST /clusters/{id}/enrollments`, `POST /clusters/{id}/enrollments/{eid}/cancel`, `POST /clusters/{id}/enrollments/{eid}/retry` | `resources:enroll` |
 | `GET /clusters/{id}/events`, `GET /clusters/{id}/sessions`, `GET /audit` | `audit:read` |
+| `GET /clusters/{id}/sessions/{sid}/recording` (`?cursor=`) | `sessions:play` |
 | `GET /alert-rules` | `alerts:read` |
 | `POST /alert-rules`, `PUT` and `DELETE /alert-rules/{id}` | `alerts:manage` |
 | `GET /clusters/{id}/mappings`, `GET /clusters/{id}/managed-users` | `users:read` |
@@ -206,7 +207,12 @@ Every refusal is JSON with a stable `reason`, sometimes a `message` and a
 | 422 | `unsupported_version` | The cluster runs a Teleport version that is too old, so changes are blocked |
 | 422 | `enterprise_only` | The feature needs Teleport Enterprise |
 | 422 | `teleport_rejected` | Teleport refused the change; for roles `detail.message` is Teleport's first line |
-| 429 | `rate_limited` | Deployment checks were run again within 10 seconds |
+| 404 | `recording_not_found` | The session was not recorded, is still in progress, or its recording was deleted |
+| 409 | `recording_access_denied` | The cluster's management role cannot read session recordings; `detail.message` names the fix |
+| 410 | `playback_expired` | The recording cursor expired, came from another module instance, or belongs to another user or session; start the playback again |
+| 413 | `recording_too_large` | The recording is over `recording.max_bytes`; `detail.max_bytes` gives the limit |
+| 422 | `not_playable` | Not an SSH terminal session; open it in Teleport |
+| 429 | `rate_limited` | Deployment checks were run again within 10 seconds, or too many recording pages are being read (honour `Retry-After`) |
 | 501 | `not_implemented` | The route is not available in this build |
 | 502 | `cluster_unreachable` | The Teleport cluster did not answer |
 | 503 | `dependency_unavailable` | A platform service the request needs is missing; `detail.dependency` is `secret_store`, `auth` or `notification` |
@@ -237,3 +243,5 @@ See [known limitations](../known-limitations.md).
 | Alert rule | 1 to 32 event types, 1 to 50 recipient users |
 | Role mapping | 1 to 16 Teleport roles, up to 32 logins |
 | Deployment checks | once every 10 seconds per draft |
+| Recording page | at most 1 MiB of output, 4000 events or 15 seconds of reading |
+| Recording playback | 500 MiB of output by default; 2 page reads per user and 8 per instance at a time; the cursor lasts an hour |

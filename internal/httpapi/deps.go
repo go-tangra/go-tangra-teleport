@@ -10,6 +10,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/enroll"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/locks"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/provisioning"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/recording"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/resources"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/roles"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/stream"
@@ -41,6 +42,8 @@ type Deps struct {
 
 	Audit  *auditlog.Service // US4: Teleport events and sessions, module audit trail
 	Alerts *alerts.Rules     // US4: alert rules
+
+	Recording *recording.Service // spec 003: in-portal playback of recorded SSH sessions
 
 	Provisioning *provisioning.Service // US5: role mappings, managed users, sync
 	Deployments  *deploy.Service       // US6: deployment wizard drafts, artifacts, checks
@@ -90,6 +93,9 @@ func (s *Server) Register(d Deps) {
 	}
 	if d.Alerts != nil {
 		s.registerAlerts(d.Alerts)
+	}
+	if d.Recording != nil {
+		s.registerRecording(d.Recording)
 	}
 	if d.Provisioning != nil {
 		s.registerProvisioning(d.Provisioning)

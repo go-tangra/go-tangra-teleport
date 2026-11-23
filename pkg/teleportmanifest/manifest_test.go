@@ -145,6 +145,35 @@ func TestGrants(t *testing.T) {
 	}
 }
 
+// Spec 003 FR-010 / R13: sessions:play goes to the administrator role and
+// the owner/admin grants only; every other role and grant is built from
+// the *:read permissions and never holds it.
+func TestSessionsPlayAdministratorsOnly(t *testing.T) {
+	const play = "sessions:play"
+	if !slices.Contains(PermissionRefs(), play) {
+		t.Fatalf("%s not declared", play)
+	}
+	for _, r := range Roles {
+		if got := slices.Contains(r.Permissions, play); got != (r.Slug == "administrator") {
+			t.Errorf("role %q holds %s = %v", r.Slug, play, got)
+		}
+	}
+	for slug, perms := range Grants {
+		if got := slices.Contains(perms, play); got != (slug == "owner" || slug == "admin") {
+			t.Errorf("grant %q holds %s = %v", slug, play, got)
+		}
+	}
+	found := false
+	for _, a := range Abilities {
+		if a.Requires == play {
+			found = slices.Equal(a.Action, []string{"play"}) && slices.Equal(a.Subject, []string{"TeleportSession"})
+		}
+	}
+	if !found {
+		t.Fatal("no play/TeleportSession ability for sessions:play")
+	}
+}
+
 func TestRegistration(t *testing.T) {
 	reg := Registration()
 	if err := reg.Validate(); err != nil {

@@ -265,6 +265,23 @@ func TestSearchSessions(t *testing.T) {
 	if d := by["desktop"]; d.Target != "win-1" {
 		t.Fatalf("desktop %+v", d)
 	}
+	// Spec 003 FR-007: only SSH sessions are playable in the portal; every
+	// kind keeps its Teleport link.
+	for kind, it := range by {
+		if it.Playable != (kind == "ssh") {
+			t.Errorf("%s playable = %v", kind, it.Playable)
+		}
+	}
+	raw, _ := json.Marshal(by["kube"])
+	if !strings.Contains(string(raw), `"playable":false`) {
+		t.Fatalf("playable is always sent: %s", raw)
+	}
+	// An SSH session with an unusable id is not playable.
+	e.Teleport.SessionEvents = []teleportapi.AuditEvent{ev("e5", "session.end", "T2004I", stop, map[string]any{"sid": "bad sid", "user": "x"})}
+	p, err = s.Sessions(ctx, id, auditlog.SessionQuery{From: start.Add(-time.Hour), To: stop.Add(time.Hour)})
+	if err != nil || len(p.Items) != 1 || p.Items[0].Kind != "ssh" || p.Items[0].Playable {
+		t.Fatalf("unsafe ssh sid %+v %v", p, err)
+	}
 }
 
 func TestPlaybackURL(t *testing.T) {
