@@ -24,9 +24,9 @@ Tests are required (constitution IV): write each test before its code.
 
 ## Phase 4: US2 – download access for tsh (P1)
 
-- [ ] T011 [P] [US2] Tests internal/access/identity_test.go: identity file parses with `identityfile.Decode`, contains key, SSH cert, TLS cert, host and TLS CAs; expiry header matches the cert
-- [ ] T012 [US2] Implement internal/access/identity.go and `POST /access/identity`, `GET /access`, `PUT /access/settings` in internal/httpapi/access.go (`Cache-Control: no-store`, attachment)
-- [ ] T013 [US2] Contract tests tests/contract/access_test.go: 403 without permission, 403 mfa_required, 409 not_provisioned, 422 ttl out of range, 404 other tenant's cluster
+- [X] T011 [P] [US2] Tests internal/access/identity_test.go: identity file parses with `identityfile.Decode`, contains key, SSH cert, TLS cert, host and TLS CAs; expiry header matches the cert
+- [X] T012 [US2] Implement internal/access/identity.go and `POST /access/identity`, `GET /access`, `PUT /access/settings` in internal/httpapi/access.go (`Cache-Control: no-store`, attachment)
+- [X] T013 [US2] Contract tests tests/contract/access_test.go: 403 without permission, 403 mfa_required, 409 not_provisioned, 422 ttl out of range, 404 other tenant's cluster
 
 ## Phase 5: US1 – portal terminal (P1)
 

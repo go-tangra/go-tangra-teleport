@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/access"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/alerts"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/auditlog"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/clusters"
@@ -44,6 +45,8 @@ type Deps struct {
 	Alerts *alerts.Rules     // US4: alert rules
 
 	Recording *recording.Service // spec 003: in-portal playback of recorded SSH sessions
+
+	Access *access.Service // spec 004: brokered Teleport access (my access, nodes, identity download)
 
 	Provisioning *provisioning.Service // US5: role mappings, managed users, sync
 	Deployments  *deploy.Service       // US6: deployment wizard drafts, artifacts, checks
@@ -96,6 +99,9 @@ func (s *Server) Register(d Deps) {
 	}
 	if d.Recording != nil {
 		s.registerRecording(d.Recording)
+	}
+	if d.Access != nil {
+		s.registerAccess(d.Access)
 	}
 	if d.Provisioning != nil {
 		s.registerProvisioning(d.Provisioning)
