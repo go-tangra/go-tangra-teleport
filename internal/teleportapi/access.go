@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"slices"
 	"strings"
@@ -211,8 +212,8 @@ func certsOf(res *proto.Certs, user, cluster string, keyPEM []byte) (*UserCerts,
 		return nil, trace.BadParameter("the TLS certificate is not for the requested user")
 	}
 	exp := tc.NotAfter.UTC()
-	if sc.ValidBefore != ssh.CertTimeInfinity {
-		if s := time.Unix(int64(sc.ValidBefore), 0).UTC(); s.Before(exp) { // #nosec G115 -- a certificate time
+	if vb := sc.ValidBefore; vb != ssh.CertTimeInfinity && vb <= math.MaxInt64 {
+		if s := time.Unix(int64(vb), 0).UTC(); s.Before(exp) {
 			exp = s
 		}
 	}
