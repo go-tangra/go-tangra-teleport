@@ -41,10 +41,10 @@
 
 ## Phase 6: Polish
 
-- [ ] T022 [P] Help: sessions playback page and permissions table in docs/help/
-- [ ] T023 [P] Spec 001 note: replay now in 003, in specs/001-teleport-cluster-management/spec.md assumptions
-- [ ] T024 Integration test against Teleport 18: record a session, page through, compare output in tests/integration/recording_test.go
-- [ ] T025 Run gates: go vet, staticcheck, go test, coverage gate, UI lint/tests/build
+- [X] T022 [P] Help: sessions playback page and permissions table in docs/help/
+- [X] T023 [P] Spec 001 note: replay now in 003, in specs/001-teleport-cluster-management/spec.md assumptions
+- [X] T024 Integration test against Teleport 18: record a session, page through, compare output in tests/integration/recording_test.go
+- [X] T025 Run gates: go vet, staticcheck, go test, coverage gate, UI lint/tests/build
 
 ## Dependencies
 

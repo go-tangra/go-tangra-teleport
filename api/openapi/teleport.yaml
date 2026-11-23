@@ -577,7 +577,7 @@ components:
       prefixItems:
         - { type: integer, minimum: 0 }
         - { type: string, enum: [o, r] }
-        - { type: string, maxLength: 87384, description: "output: base64 of at most 64 KiB; resize: WxH" }
+        - { type: string, maxLength: 89478488, description: "output: base64 of one Teleport print event (bounded by teleport.max_message_bytes, at most 64 MiB); resize: WxH" }
       items: false
     RecordingPage:
       description: >-
