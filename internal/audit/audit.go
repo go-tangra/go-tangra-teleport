@@ -40,6 +40,12 @@ const (
 	ClusterCheck     Action = "teleport.cluster.check"
 	CredentialRotate Action = "teleport.credential.rotate" // #nosec G101 -- a name, not a credential
 
+	// The access identity of brokered access (spec 005): stored the first
+	// time, replaced, removed. Rows never carry the identity.
+	AccessIdentityUpload  Action = "teleport.access_identity.upload"
+	AccessIdentityReplace Action = "teleport.access_identity.replace"
+	AccessIdentityDelete  Action = "teleport.access_identity.delete"
+
 	UserCreate Action = "teleport.user.create"
 	UserUpdate Action = "teleport.user.update"
 	UserReset  Action = "teleport.user.reset"
@@ -104,6 +110,7 @@ const (
 // Vocabulary lists every action.
 var Vocabulary = []Action{
 	ClusterRegister, ClusterUpdate, ClusterRemove, ClusterCheck, CredentialRotate,
+	AccessIdentityUpload, AccessIdentityReplace, AccessIdentityDelete,
 	UserCreate, UserUpdate, UserReset, UserDelete,
 	RoleCreate, RoleUpdate, RoleDelete,
 	LockCreate, LockDelete,

@@ -68,6 +68,23 @@ func totp(t *testing.T, secret string, at time.Time) string {
 // (the invite token is its own authorization).
 func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Container, guard *netguard.Guard, proxy, user, roles string, bootstrap []byte) []byte {
 	t.Helper()
+	return signIn(t, ctx, c, guard, proxy, user, roles, bootstrap, 2*time.Hour).identity
+}
+
+// signedIn is the outcome of signIn: the identity file and what signs in
+// again (the password and the TOTP secret).
+type signedIn struct {
+	identity []byte
+	password string
+	secret   string
+}
+
+// itPassword is the password signIn sets.
+const itPassword = "it-Brokered-Access-0123456789"
+
+// signIn is signInIdentity asking for ttl.
+func signIn(t *testing.T, ctx context.Context, c testcontainers.Container, guard *netguard.Guard, proxy, user, roles string, bootstrap []byte, ttl time.Duration) signedIn {
+	t.Helper()
 	out := tctlOut(t, ctx, c, "users", "add", user, "--roles="+roles)
 	m := regexp.MustCompile(`/web/invite/([A-Za-z0-9]+)`).FindStringSubmatch(out)
 	if m == nil {
@@ -90,7 +107,7 @@ func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Containe
 		t.Fatalf("register challenge: %v", err)
 	}
 	secret := ch.GetTOTP().GetSecret()
-	const password = "it-Brokered-Access-0123456789"
+	const password = itPassword
 	start := time.Now()
 	if _, err := api.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{TokenID: token, NewPassword: []byte(password),
 		NewDeviceName: "otp", NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
@@ -126,7 +143,7 @@ func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Containe
 	}
 	raw, code := post("/v1/webapi/mfa/login/finish", map[string]any{"user": user, "password": password, "totp_code": totp(t, secret, time.Now()),
 		"ssh_pub_key": ssh.MarshalAuthorizedKey(sshPub), "tls_pub_key": pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pkix}),
-		"ttl": int64(2 * time.Hour)})
+		"ttl": int64(ttl)})
 	var login struct {
 		Cert        []byte `json:"cert"`
 		TLSCert     []byte `json:"tls_cert"`
@@ -152,5 +169,5 @@ func signInIdentity(t *testing.T, ctx context.Context, c testcontainers.Containe
 	if err != nil {
 		t.Fatal(err)
 	}
-	return b
+	return signedIn{identity: b, password: password, secret: secret}
 }
