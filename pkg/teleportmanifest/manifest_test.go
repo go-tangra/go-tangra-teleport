@@ -99,7 +99,7 @@ var reads = []string{"clusters:read", "users:read", "roles:read", "locks:read", 
 func TestRoles(t *testing.T) {
 	want := map[string][]string{
 		"administrator": authz.Permissions,
-		"operator":      append(slices.Clone(reads), "tokens:manage", "locks:manage", "resources:link", "resources:enroll"),
+		"operator":      append(slices.Clone(reads), "tokens:manage", "locks:manage", "resources:link", "resources:enroll", "access:terminal"),
 		"auditor":       reads,
 		"viewer":        slices.DeleteFunc(slices.Clone(reads), func(p string) bool { return p == "audit:read" }),
 	}
@@ -171,6 +171,38 @@ func TestSessionsPlayAdministratorsOnly(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no play/TeleportSession ability for sessions:play")
+	}
+}
+
+// Spec 004 FR-015 / R13: administrators get both brokered-access
+// permissions, operators the terminal only, auditors and viewers neither.
+func TestBrokeredAccessGrants(t *testing.T) {
+	const term, dl = "access:terminal", "access:download"
+	for _, p := range []string{term, dl} {
+		if !slices.Contains(PermissionRefs(), p) {
+			t.Fatalf("%s not declared", p)
+		}
+	}
+	want := map[string][2]bool{"administrator": {true, true}, "operator": {true, false}, "auditor": {false, false}, "viewer": {false, false}}
+	for _, r := range Roles {
+		got := [2]bool{slices.Contains(r.Permissions, term), slices.Contains(r.Permissions, dl)}
+		if got != want[r.Slug] {
+			t.Errorf("role %q: terminal/download = %v, want %v", r.Slug, got, want[r.Slug])
+		}
+	}
+	grants := map[string][2]bool{"owner": {true, true}, "admin": {true, true}, "operator": {true, false}, "auditor": {false, false}, "member": {false, false}}
+	for slug, perms := range Grants {
+		got := [2]bool{slices.Contains(perms, term), slices.Contains(perms, dl)}
+		if got != grants[slug] {
+			t.Errorf("grant %q: terminal/download = %v, want %v", slug, got, grants[slug])
+		}
+	}
+	abilities := map[string]string{}
+	for _, a := range Abilities {
+		abilities[a.Requires] = strings.Join(a.Action, ",") + "/" + strings.Join(a.Subject, ",")
+	}
+	if abilities[term] != "terminal/TeleportAccess" || abilities[dl] != "download/TeleportAccess" {
+		t.Fatalf("abilities %v", abilities)
 	}
 }
 

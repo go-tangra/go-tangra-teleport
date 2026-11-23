@@ -261,6 +261,14 @@ func TestSubjectsCarryVerifiedIdentityOnly(t *testing.T) {
 	if c, err := Caller(r); err != nil || c.UserID != admin || RequestID(r) != "" {
 		t.Fatal("caller")
 	}
+	if s.MFA() {
+		t.Fatal("no amr is no MFA")
+	}
+	// Spec 004 R3: the session's amr comes from the verified token.
+	r = r.WithContext(authclient.WithIdentity(r.Context(), authclient.Identity{UserID: admin, TenantID: tenant, AMR: []string{"pwd", "otp"}}))
+	if s, err := Subjects(r); err != nil || !s.MFA() {
+		t.Fatalf("amr not carried: %+v %v", s, err)
+	}
 }
 
 func TestErrorMapping(t *testing.T) {

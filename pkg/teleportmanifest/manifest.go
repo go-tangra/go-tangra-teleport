@@ -59,6 +59,8 @@ var Permissions = []gatewayclient.Permission{
 	{Resource: "provisioning", Action: "manage", Description: "Manage role mappings and provision or de-provision Tangra users"},
 	{Resource: "deployments", Action: "manage", Description: "Use the deployment wizard: drafts, artifacts and checks"},
 	{Resource: "sessions", Action: "play", Description: "Replay recorded SSH sessions in the portal (shows everything that was on the terminal)"},
+	{Resource: "access", Action: "terminal", Description: "Open an SSH terminal in the portal as your own provisioned Teleport user (MFA sign-in required)"},
+	{Resource: "access", Action: "download", Description: "Download a short-lived Teleport identity file for tsh as your own provisioned Teleport user (MFA sign-in required)"},
 }
 
 // PermissionRefs lists "resource:action" for every declared permission.
@@ -84,7 +86,7 @@ func readPermissions() []string {
 // Permission sets of the module roles (contracts/http-api.md).
 var (
 	administratorPermissions = PermissionRefs()
-	operatorPermissions      = append(readPermissions(), "tokens:manage", "locks:manage", "resources:link", "resources:enroll")
+	operatorPermissions      = append(readPermissions(), "tokens:manage", "locks:manage", "resources:link", "resources:enroll", "access:terminal")
 	auditorPermissions       = readPermissions()
 	viewerPermissions        = slices.DeleteFunc(readPermissions(), func(p string) bool { return p == "audit:read" })
 )
@@ -94,12 +96,12 @@ var (
 var Roles = []authclient.ModuleRole{
 	{
 		Slug: "administrator", DisplayName: DisplayName + " administrator",
-		Description: "Manage clusters, users, roles, locks, tokens, links, alerts, provisioning and deployments; play recorded sessions",
+		Description: "Manage clusters, users, roles, locks, tokens, links, alerts, provisioning and deployments; play recorded sessions; brokered SSH access (terminal and tsh download)",
 		Permissions: administratorPermissions,
 	},
 	{
 		Slug: "operator", DisplayName: DisplayName + " operator",
-		Description: "Read everything; create join tokens, enroll inventory hosts, manage locks and confirm resource links",
+		Description: "Read everything; create join tokens, enroll inventory hosts, manage locks, confirm resource links and open portal SSH terminals",
 		Permissions: operatorPermissions,
 	},
 	{
@@ -151,6 +153,8 @@ var Abilities = []gatewayclient.Ability{
 	{Action: []string{"manage"}, Subject: []string{"TeleportProvisioning", "TeleportMapping"}, Requires: "provisioning:manage"},
 	{Action: []string{"manage"}, Subject: []string{"TeleportDeployment"}, Requires: "deployments:manage"},
 	{Action: []string{"play"}, Subject: []string{"TeleportSession"}, Requires: "sessions:play"},
+	{Action: []string{"terminal"}, Subject: []string{"TeleportAccess"}, Requires: "access:terminal"},
+	{Action: []string{"download"}, Subject: []string{"TeleportAccess"}, Requires: "access:download"},
 }
 
 // Nav lists the navigation contributions.

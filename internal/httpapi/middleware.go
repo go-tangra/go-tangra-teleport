@@ -105,13 +105,14 @@ func (s *Server) authorize(next http.Handler) http.Handler {
 
 // Subjects derives the authz subject from the verified platform identity: the
 // gateway forwards a signed-in user on every gateway-proxied route. Roles come
-// from the verified token only (platform-admin is never taken from a request).
+// from the verified token only (platform-admin is never taken from a request),
+// as do the session's authentication methods (amr, spec 004 R3).
 func Subjects(r *http.Request) (authz.Subjects, error) {
 	id, err := Caller(r)
 	if err != nil {
 		return authz.Subjects{}, err
 	}
-	return authz.User(id.TenantID, id.UserID, id.Roles), nil
+	return authz.User(id.TenantID, id.UserID, id.Roles).WithAMR(id.AMR), nil
 }
 
 // validate checks the request against the OpenAPI document for declared routes.

@@ -5,13 +5,13 @@ Tests are required (constitution IV): write each test before its code.
 
 ## Phase 1: Setup
 
-- [ ] T001 Promote `golang.org/x/crypto` to a direct dependency in go.mod (no version change) for `x/crypto/ssh`
+- [X] T001 Promote `golang.org/x/crypto` to a direct dependency in go.mod (no version change) for `x/crypto/ssh` (already direct: go.mod lists `golang.org/x/crypto v0.57.0` in the main require block; no change)
 
 ## Phase 2: Foundational
 
-- [ ] T002 Add `AccessTerminal = "access:terminal"` and `AccessDownload = "access:download"` to internal/authz/authz.go (not in workerAllowed/moduleAllowed)
-- [ ] T003 Declare both permissions in pkg/teleportmanifest/manifest.go; operator grant gets `access:terminal`; administrator gets both via PermissionRefs; update manifest tests
-- [ ] T004 Declare the contract-table routes in api/openapi/teleport.yaml (`x-freya-permission`, output route `x-freya-timeout-seconds: 300`, schemas `MyAccess`, `AccessNode`, `AccessSettings`, `TerminalCreate`, `Terminal`); paths without `:`
+- [X] T002 Add `AccessTerminal = "access:terminal"` and `AccessDownload = "access:download"` to internal/authz/authz.go (not in workerAllowed/moduleAllowed)
+- [X] T003 Declare both permissions in pkg/teleportmanifest/manifest.go; operator grant gets `access:terminal`; administrator gets both via PermissionRefs; update manifest tests
+- [X] T004 Declare the contract-table routes in api/openapi/teleport.yaml (`x-freya-permission`, output route `x-freya-timeout-seconds: 300`, schemas `MyAccess`, `AccessNode`, `AccessSettings`, `TerminalCreate`, `Terminal`); paths without `:`
 - [ ] T005 Migration internal/store/migrations/NNN_cluster_access_settings.sql (R4) and repo methods Get/Put in internal/repo (default 480 when absent)
 - [ ] T006 Add to teleportapi.Client (internal/teleportapi/access.go + Fake in fake*.go): `IssueUserCerts(ctx, user string, ttl time.Duration) (UserCerts, error)` (generates an Ed25519/ECDSA key in memory, `GenerateUserCerts` with SSH+TLS public keys, returns key, SSH cert, TLS cert, expiry), `HostCAs(ctx)`, `UserCAs(ctx)` (TLS CA for the identity file), `DialNode(ctx, certs, node, login)` returning an `*ssh.Client` via `client/proxy` DialHost with host-key check against the host CA; map AccessDenied on impersonation to reason `management_role_outdated`
 - [ ] T007 Management role: add the impersonate rule (R1) to internal/deploy/templates/tangra-manager-role.yaml.tmpl and its golden/test; document the same change for go-tangra-docker `configs/teleport/tangra-manager-role.yaml`
