@@ -5,14 +5,14 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `@xterm/xterm` pinned to an exact version in ui/package.json and ui/package-lock.json
+- [X] T001 Add `@xterm/xterm` pinned to an exact version in ui/package.json and ui/package-lock.json
 
 ## Phase 2: Foundational
 
-- [ ] T002 Add permission `SessionsPlay = "sessions:play"` to internal/authz/authz.go (Permissions; not in workerAllowed/moduleAllowed)
+- [X] T002 Add permission `SessionsPlay = "sessions:play"` to internal/authz/authz.go (Permissions; not in workerAllowed/moduleAllowed)
 - [ ] T003 Declare `GET /api/teleport/v1/clusters/{id}/sessions/{sid}/recording` (`x-freya-permission: sessions:play`, timeout 60s), schema `RecordingPage`, and `playable` on the session item in api/openapi/teleport.yaml
-- [ ] T004 Add `StreamRecording(ctx, sid, startIndex)` to the Teleport client interface with the real implementation over `StreamSessionEvents`, the limited wrapper and the Fake in internal/teleportapi/recording.go, internal/teleportapi/fake_enroll.go
-- [ ] T005 [P] Test the manifest gives `sessions:play` to the administrator role and the owner/admin grants only, in pkg/teleportmanifest/manifest_test.go
+- [X] T004 Add `StreamRecording(ctx, sid, startIndex)` to the Teleport client interface with the real implementation over `StreamSessionEvents`, the limited wrapper and the Fake in internal/teleportapi/recording.go, internal/teleportapi/fake_enroll.go
+- [X] T005 [P] Test the manifest gives `sessions:play` to the administrator role and the owner/admin grants only, in pkg/teleportmanifest/manifest_test.go
 
 ## Phase 3: US1 + US2 – watch a session, progressive loading (P1)
 

@@ -139,7 +139,8 @@ func resourceOf(r types.Resource) Resource {
 
 // ---- real
 
-// enrollAPI is the part of *tclient.Client the US3 and US4 calls use.
+// enrollAPI is the part of *tclient.Client the US3 and US4 calls (and the
+// spec 003 recording stream) use.
 type enrollAPI interface {
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
@@ -148,6 +149,7 @@ type enrollAPI interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]apievents.AuditEvent, string, error)
 	SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
+	StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 var _ enrollAPI = (*tclient.Client)(nil)

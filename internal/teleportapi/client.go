@@ -145,6 +145,10 @@ type Client interface {
 	// Audit (US4, auditlog.go).
 	SearchEvents(ctx context.Context, q EventQuery) (Page[AuditEvent], error)
 	SearchSessions(ctx context.Context, q EventQuery) (Page[AuditEvent], error)
+	// StreamRecording streams session sid's recording from event index
+	// start (spec 003, recording.go). Events is closed at the end; errs then
+	// holds at most one error and is closed. Cancel ctx to stop early.
+	StreamRecording(ctx context.Context, sid string, start int64) (<-chan RecordingEvent, <-chan error)
 
 	Close() error
 }

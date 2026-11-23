@@ -30,6 +30,12 @@ type stubEnroll struct {
 	order    types.EventOrder
 	evs      []apievents.AuditEvent
 	err      error
+	// StreamSessionEvents (recording_test.go): the events streamed, an
+	// error sent after them, and what was asked for.
+	rec      []apievents.AuditEvent
+	recErr   error
+	recSID   string
+	recStart int64
 }
 
 func (s *stubEnroll) CreateToken(_ context.Context, t types.ProvisionToken) error {

@@ -67,12 +67,17 @@ const (
 	AlertsManage       = "alerts:manage"
 	ProvisioningManage = "provisioning:manage"
 	DeploymentsManage  = "deployments:manage"
+	// SessionsPlay replays a recorded SSH session in the portal (spec 003):
+	// separate from AuditRead because a recording shows everything that was
+	// on the terminal. Human-only (not in moduleAllowed or workerAllowed).
+	SessionsPlay = "sessions:play"
 )
 
 // Permissions lists every module permission.
 var Permissions = []string{
 	ClustersRead, ClustersManage, UsersRead, UsersManage, RolesRead, RolesManage, LocksRead, LocksManage,
 	TokensManage, ResourcesRead, ResourcesLink, ResourcesEnroll, AuditRead, AlertsRead, AlertsManage, ProvisioningManage, DeploymentsManage,
+	SessionsPlay,
 }
 
 // moduleAllowed is what a mesh peer may do (contracts/grpc.md: Access is read-only).
