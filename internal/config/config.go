@@ -43,6 +43,7 @@ type Config struct {
 	Teleport   Teleport   `yaml:"teleport"`
 	Thresholds Thresholds `yaml:"thresholds"`
 	Limits     Limits     `yaml:"limits_teleport"`
+	Recording  Recording  `yaml:"recording"`
 	// TaskScheduler configures the scheduler integration. The TaskExecutor
 	// service is always served (the mesh policy admits only the scheduler);
 	// Enabled only controls registering the task types.
@@ -143,6 +144,19 @@ type Limits struct {
 	MaxPageSize    int   `yaml:"max_page_size"`
 }
 
+// Recording bounds in-portal session playback (spec 003, research R7/R8).
+// The defaults are the maximum; an operator can only lower them.
+type Recording struct {
+	// MaxBytes is the most terminal output one playback relays (default
+	// and maximum 500 MiB; at least 1 MiB).
+	MaxBytes int64 `yaml:"max_bytes"`
+	// MaxConcurrent bounds page reads in flight per module instance (1..8).
+	MaxConcurrent int `yaml:"max_concurrent"`
+	// MaxPerUser bounds page reads in flight per user (1..2, at most
+	// MaxConcurrent).
+	MaxPerUser int `yaml:"max_per_user"`
+}
+
 // Default returns secure defaults on top of the Freya defaults.
 func Default() Config {
 	return Config{
@@ -156,6 +170,7 @@ func Default() Config {
 			MaxConcurrentPerCluster: 4, CacheTTLSeconds: 15, ProbeTimeoutSeconds: 5},
 		Thresholds: Thresholds{CredentialWarnDays: 7, UnreachableAfterFailures: 3, OfflineMinutes: 15, DeprovisionGraceDays: 7},
 		Limits:     Limits{MaxRequestBytes: 1 << 20, MaxUploadBytes: 64 << 10, MaxPageSize: 200},
+		Recording:  Recording{MaxBytes: 500 << 20, MaxConcurrent: 8, MaxPerUser: 2},
 	}
 }
 
@@ -353,6 +368,16 @@ func (c Config) validateLimits() error {
 	}
 	if !within(l.MaxPageSize, 1, 200) {
 		return errors.New("config: limits_teleport.max_page_size must be within [1, 200]")
+	}
+	r := c.Recording
+	if !within(r.MaxBytes, 1<<20, 500<<20) {
+		return errors.New("config: recording.max_bytes must be within [1 MiB, 500 MiB]")
+	}
+	if !within(r.MaxConcurrent, 1, 8) {
+		return errors.New("config: recording.max_concurrent must be within [1, 8]")
+	}
+	if !within(r.MaxPerUser, 1, min(2, r.MaxConcurrent)) {
+		return errors.New("config: recording.max_per_user must be within [1, 2] and at most recording.max_concurrent")
 	}
 	return nil
 }

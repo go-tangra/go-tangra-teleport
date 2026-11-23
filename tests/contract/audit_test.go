@@ -192,7 +192,7 @@ func TestAuditResponsesMatchSchemas(t *testing.T) {
 		t.Fatalf("failed logins %s", rec.Body)
 	}
 	_, rec = call(s, "GET", base+"/sessions?"+day, "auditor", nil)
-	if !strings.Contains(rec.Body.String(), `"playback_url":"https://teleport.example.com/web/cluster/prod.example.com/session/abc-1"`) {
+	if !strings.Contains(rec.Body.String(), `"playback_url":"https://teleport.example.com/web/cluster/prod.example.com/session/abc-1","playable":true`) {
 		t.Fatalf("sessions %s", rec.Body)
 	}
 }

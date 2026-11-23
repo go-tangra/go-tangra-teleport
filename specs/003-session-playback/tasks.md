@@ -10,19 +10,19 @@
 ## Phase 2: Foundational
 
 - [X] T002 Add permission `SessionsPlay = "sessions:play"` to internal/authz/authz.go (Permissions; not in workerAllowed/moduleAllowed)
-- [ ] T003 Declare `GET /api/teleport/v1/clusters/{id}/sessions/{sid}/recording` (`x-freya-permission: sessions:play`, timeout 60s), schema `RecordingPage`, and `playable` on the session item in api/openapi/teleport.yaml
+- [X] T003 Declare `GET /api/teleport/v1/clusters/{id}/sessions/{sid}/recording` (`x-freya-permission: sessions:play`, timeout 60s), schema `RecordingPage`, and `playable` on the session item in api/openapi/teleport.yaml
 - [X] T004 Add `StreamRecording(ctx, sid, startIndex)` to the Teleport client interface with the real implementation over `StreamSessionEvents`, the limited wrapper and the Fake in internal/teleportapi/recording.go, internal/teleportapi/fake_enroll.go
 - [X] T005 [P] Test the manifest gives `sessions:play` to the administrator role and the owner/admin grants only, in pkg/teleportmanifest/manifest_test.go
 
 ## Phase 3: US1 + US2 – watch a session, progressive loading (P1)
 
-- [ ] T006 [P] [US1] Tests for page building (print/resize/start events, base64 output, page bounds of 1 MiB / 4000 events / 15 s, done, size limit, non-SSH refusal) in internal/recording/page_test.go
-- [ ] T007 [P] [US1] Tests for the cursor (round trip, tamper, expiry, bound to tenant/user/cluster/session) in internal/recording/cursor_test.go
-- [ ] T008 [US1] Implement page building in internal/recording/page.go
-- [ ] T009 [US1] Implement the signed cursor in internal/recording/cursor.go
-- [ ] T010 [US1] Implement `recording.Service.Page` (cluster client with `sessions:play`, sid validation, cursor, stream from index, error mapping R9) in internal/recording/service.go
-- [ ] T011 [US1] Mount the route and map errors (400/404/409/410/413/422/429) in internal/httpapi/recording.go; wire the service in internal/httpapi/deps.go and internal/app/app.go
-- [ ] T012 [US1] Set `playable` on SSH sessions in internal/auditlog/search.go
+- [X] T006 [P] [US1] Tests for page building (print/resize/start events, base64 output, page bounds of 1 MiB / 4000 events / 15 s, done, size limit, non-SSH refusal) in internal/recording/page_test.go
+- [X] T007 [P] [US1] Tests for the cursor (round trip, tamper, expiry, bound to tenant/user/cluster/session) in internal/recording/cursor_test.go
+- [X] T008 [US1] Implement page building in internal/recording/page.go
+- [X] T009 [US1] Implement the signed cursor in internal/recording/cursor.go
+- [X] T010 [US1] Implement `recording.Service.Page` (cluster client with `sessions:play`, sid validation, cursor, stream from index, error mapping R9) in internal/recording/service.go
+- [X] T011 [US1] Mount the route and map errors (400/404/409/410/413/422/429) in internal/httpapi/recording.go; wire the service in internal/httpapi/deps.go and internal/app/app.go
+- [X] T012 [US1] Set `playable` on SSH sessions in internal/auditlog/search.go
 - [ ] T013 [P] [US1] Tests for the player model (timeline, speed, skip idle > 3 s, seek reproduces output up to t, resize) in ui/src/player/model.test.ts
 - [ ] T014 [US1] Implement the player model in ui/src/player/model.ts
 - [ ] T015 [US1] Implement SessionPlayer.vue (xterm, controls, progressive loading, prefetch, loading state on seek past loaded, stop on close) in ui/src/pages/clusters/SessionPlayer.vue; API call in ui/src/stores
@@ -30,10 +30,10 @@
 
 ## Phase 4: US3 – permission and audit (P1)
 
-- [ ] T017 [P] [US3] Contract tests: 403 without `sessions:play`, 404 other tenant, one audit row per playback (none for later pages), 410 for a cursor of another user in tests/contract/recording_test.go
-- [ ] T018 [US3] Record `session.played` on the first page in internal/recording/service.go
-- [ ] T019 [US3] Per-process (8) and per-user (2) concurrency limits with 429 + Retry-After in internal/recording/limits.go (+ limits_test.go)
-- [ ] T020 [P] [US3] Test that no recording content reaches logs, audit or events (SC-005) in internal/recording/service_test.go
+- [X] T017 [P] [US3] Contract tests: 403 without `sessions:play`, 404 other tenant, one audit row per playback (none for later pages), 410 for a cursor of another user in tests/contract/recording_test.go
+- [X] T018 [US3] Record `session.played` on the first page in internal/recording/service.go
+- [X] T019 [US3] Per-process (8) and per-user (2) concurrency limits with 429 + Retry-After in internal/recording/limits.go (+ limits_test.go)
+- [X] T020 [P] [US3] Test that no recording content reaches logs, audit or events (SC-005) in internal/recording/service_test.go
 
 ## Phase 5: US4 – other kinds keep the link (P3)
 

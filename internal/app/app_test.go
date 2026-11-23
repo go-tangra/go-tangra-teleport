@@ -364,3 +364,28 @@ func TestSchedulerWiring(t *testing.T) {
 		}
 	}
 }
+
+// Spec 003 is wired: the recording route is mounted (a permitted caller
+// reaches the service: an unknown cluster is not_found, not 501) and the
+// bounds come from config.
+func TestBuildWiresRecording(t *testing.T) {
+	o := options(secrets.NewFake(), nil)
+	o.Checker = authz.Static{"u1": authz.Permissions}
+	cfg := testConfig()
+	cfg.Recording.MaxBytes = 2 << 20
+	a, err := Build(context.Background(), cfg, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if a.Recording == nil || a.Recording.MaxBytes != 2<<20 || a.Recording.Signer == nil || a.Recording.Limiter == nil {
+		t.Fatalf("recording %+v", a.Recording)
+	}
+	r := httptest.NewRequest("GET", "https://localhost/api/teleport/v1/clusters/018f3a2b-0000-7000-8000-0000000000ff/sessions/abc-1/recording", nil)
+	r.Header.Set("Authorization", "Bearer viewer")
+	w := httptest.NewRecorder()
+	a.HTTP.Handler().ServeHTTP(w, r)
+	if w.Code != 404 {
+		t.Fatalf("recording route: %d %s", w.Code, w.Body)
+	}
+}

@@ -37,7 +37,7 @@ var contractRoutes = append([]string{
 	"GET /api/teleport/v1/health",
 	"GET /api/teleport/v1/stream",
 }, append(append(append(append(append(clusterRouteList(), identityRouteList()...), resourceRouteList()...), enrollmentRouteList()...), auditRouteList()...),
-	append(provisioningRouteList(), deploymentRouteList()...)...)...)
+	append(append(provisioningRouteList(), deploymentRouteList()...), recordingRouteList()...)...)...)
 
 func load(t *testing.T) *openapi3.T {
 	t.Helper()

@@ -85,6 +85,12 @@ components:
         - not_supported_platform
         - upgrade_required
         - retired
+        # spec 003: session playback
+        - recording_not_found
+        - recording_access_denied
+        - playback_expired
+        - recording_too_large
+        - not_playable
     Error:
       type: object
       required: [reason]
@@ -542,7 +548,7 @@ components:
         next: { type: string, description: 'opaque Teleport cursor; pass it back unchanged with the same window and filters' }
     Session:
       type: object
-      required: [sid, participants, user, target, kind, started_at, duration_s]
+      required: [sid, participants, user, target, kind, started_at, duration_s, playable]
       properties:
         sid: { type: string }
         participants: { type: array, items: { type: string } }
@@ -552,12 +558,45 @@ components:
         started_at: { type: string, format: date-time }
         duration_s: { type: integer, minimum: 0 }
         playback_url: { type: string, format: uri, description: 'opens playback in the Teleport web UI (absent when the session id is unusable)' }
+        playable: { type: boolean, description: 'an SSH terminal session the portal player can replay (spec 003); other kinds keep only playback_url' }
     SessionPage:
       type: object
       required: [items]
       properties:
         items: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/Session' } }
         next: { type: string }
+    RecordingEvent:
+      description: >-
+        One replay event, asciicast-like: [ms, "o", output] with ms from the
+        session start and the terminal output base64-encoded (it is not
+        always UTF-8), or [ms, "r", "WxH"] for a terminal resize. ms never
+        decreases within a recording.
+      type: array
+      minItems: 3
+      maxItems: 3
+      prefixItems:
+        - { type: integer, minimum: 0 }
+        - { type: string, enum: [o, r] }
+        - { type: string, maxLength: 87384, description: "output: base64 of at most 64 KiB; resize: WxH" }
+      items: false
+    RecordingPage:
+      description: >-
+        One page of a recorded SSH session, read live from the cluster and
+        never stored by the module. A page holds at most 1 MiB of output,
+        4000 events or 15 s of reading. width and height (the initial
+        terminal size) come with the first page only. Fetch the next page
+        with cursor=next until done; next is signed, bound to the caller,
+        cluster and session, and expires after an hour or when the module
+        restarts (410 playback_expired: start the playback again).
+      type: object
+      required: [events, done, bytes]
+      properties:
+        width: { type: integer, minimum: 1, maximum: 4096 }
+        height: { type: integer, minimum: 1, maximum: 4096 }
+        events: { type: array, maxItems: 4000, items: { $ref: '#/components/schemas/RecordingEvent' } }
+        next: { type: string, maxLength: 1024 }
+        done: { type: boolean }
+        bytes: { type: integer, minimum: 0, description: output relayed so far in this playback }
     AuditRecord:
       type: object
       required: [id, time, actor_kind, actor_id, action, target_kind, target_name, outcome, detail]
@@ -1215,6 +1254,34 @@ paths:
         - { $ref: '#/components/parameters/next' }
       responses:
         '200': { description: one page of sessions, content: { application/json: { schema: { $ref: '#/components/schemas/SessionPage' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/sessions/{sid}/recording:
+    parameters:
+      - { $ref: '#/components/parameters/id' }
+      - { name: sid, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9-]{0,63}$' } }
+    get:
+      operationId: getTeleportSessionRecording
+      description: >-
+        One page of a recorded SSH terminal session for the portal player
+        (spec 003), streamed live from the cluster with its management
+        identity; nothing is stored. The first request (no cursor) records
+        one teleport.session.played audit entry; later pages do not.
+        Refusals: 403 forbidden (no sessions:play); 404 not_found (cluster
+        not in the tenant) or recording_not_found (not recorded, in
+        progress or deleted); 409 recording_access_denied (the management
+        role cannot read recordings); 410 playback_expired (cursor expired,
+        issued by another module instance, or bound to another caller or
+        session); 413 recording_too_large (over recording.max_bytes,
+        500 MiB by default); 422 not_playable (not an SSH terminal session)
+        or validation_failed (bad sid or cursor); 429 rate_limited with
+        Retry-After (concurrent playbacks per user and per instance); 502
+        cluster_unreachable.
+      x-freya-permission: 'sessions:play'
+      x-freya-timeout-seconds: 60
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, minLength: 1, maxLength: 1024 } }
+      responses:
+        '200': { description: one page of the recording, content: { application/json: { schema: { $ref: '#/components/schemas/RecordingPage' } } } }
         default: { $ref: '#/components/responses/Error' }
   /api/teleport/v1/audit:
     get:
