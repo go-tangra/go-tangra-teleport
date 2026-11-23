@@ -257,6 +257,8 @@ export interface TeleportSession {
   started_at: string
   duration_s: number
   playback_url?: string | undefined
+  /** An SSH terminal session the portal player can replay (spec 003). */
+  playable: boolean
 }
 
 export interface AuditRecord {

@@ -16,6 +16,12 @@ registerReasons({
   teleport_rejected: 'The Teleport cluster refused the request.',
   dependency_unavailable: 'A platform service the module needs is unavailable.',
   blocked_target: 'That address is not allowed: loopback, link-local, metadata and private networks are refused.',
+  // Session playback (spec 003).
+  recording_not_found: 'Teleport has no recording of this session (not recorded, still in progress, or deleted).',
+  recording_access_denied: "The cluster's management role cannot read session recordings.",
+  playback_expired: 'This playback has expired; start it again.',
+  recording_too_large: 'This recording is too large to play here.',
+  not_playable: 'Only SSH terminal sessions can be played here.',
 })
 
 export const api = createApi({ base: BASE })

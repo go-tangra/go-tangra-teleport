@@ -1,5 +1,6 @@
 import { api } from '@/api/client'
 import type { AlertRule, AlertRuleInput, AuditEvent, AuditRecord, CursorPage, Page, TeleportSession } from '@/api/types'
+import type { RecordingPage } from '@/player/model'
 
 // Teleport events and sessions of one cluster, the module audit trail and
 // alert rules (US4). Searches are live: the window (from/to, at most 31
@@ -43,6 +44,17 @@ export const auditApi = {
   events: (id: string, query: EventQuery) => api<CursorPage<AuditEvent>>('GET', c(id) + '/events', undefined, { query }),
   sessions: (id: string, query: SessionQuery) => api<CursorPage<TeleportSession>>('GET', c(id) + '/sessions', undefined, { query }),
   trail: (query: TrailQuery = {}) => api<Page<AuditRecord>>('GET', 'audit', undefined, { query }),
+}
+
+// Recorded-session playback (spec 003, sessions:play): one page of a
+// recording; cursor is the previous page's `next` (none starts a new,
+// audited playback). The signal aborts the read when the player closes.
+export const recordingApi = {
+  page: (id: string, sid: string, cursor?: string, signal?: AbortSignal) =>
+    api<RecordingPage>('GET', c(id) + '/sessions/' + encodeURIComponent(sid) + '/recording', undefined, {
+      query: { cursor: cursor || undefined },
+      ...(signal ? { signal } : {}),
+    }),
 }
 
 export const alertRulesApi = {

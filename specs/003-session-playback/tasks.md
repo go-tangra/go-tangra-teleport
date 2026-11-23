@@ -23,10 +23,10 @@
 - [X] T010 [US1] Implement `recording.Service.Page` (cluster client with `sessions:play`, sid validation, cursor, stream from index, error mapping R9) in internal/recording/service.go
 - [X] T011 [US1] Mount the route and map errors (400/404/409/410/413/422/429) in internal/httpapi/recording.go; wire the service in internal/httpapi/deps.go and internal/app/app.go
 - [X] T012 [US1] Set `playable` on SSH sessions in internal/auditlog/search.go
-- [ ] T013 [P] [US1] Tests for the player model (timeline, speed, skip idle > 3 s, seek reproduces output up to t, resize) in ui/src/player/model.test.ts
-- [ ] T014 [US1] Implement the player model in ui/src/player/model.ts
-- [ ] T015 [US1] Implement SessionPlayer.vue (xterm, controls, progressive loading, prefetch, loading state on seek past loaded, stop on close) in ui/src/pages/clusters/SessionPlayer.vue; API call in ui/src/stores
-- [ ] T016 [US1] Add the route `/teleport/clusters/:id/sessions/:sid/play` and the Play action on playable sessions (permission-gated) in ui/src/pages/clusters/tabs/SessionsTab.vue and the module router
+- [X] T013 [P] [US1] Tests for the player model (timeline, speed, skip idle > 3 s, seek reproduces output up to t, resize) in ui/src/player/model.test.ts
+- [X] T014 [US1] Implement the player model in ui/src/player/model.ts
+- [X] T015 [US1] Implement SessionPlayer.vue (xterm, controls, progressive loading, prefetch, loading state on seek past loaded, stop on close) in ui/src/pages/clusters/SessionPlayer.vue; API call in ui/src/stores
+- [X] T016 [US1] Add the route `/teleport/clusters/:id/sessions/:sid/play` and the Play action on playable sessions (permission-gated) in ui/src/pages/clusters/tabs/SessionsTab.vue and the module router
 
 ## Phase 4: US3 – permission and audit (P1)
 
@@ -37,7 +37,7 @@
 
 ## Phase 5: US4 – other kinds keep the link (P3)
 
-- [ ] T021 [US4] Hide Play for non-playable sessions, keep the Teleport link for all, in ui/src/pages/clusters/tabs/SessionsTab.vue (+ test)
+- [X] T021 [US4] Hide Play for non-playable sessions, keep the Teleport link for all, in ui/src/pages/clusters/tabs/SessionsTab.vue (+ test)
 
 ## Phase 6: Polish
 
