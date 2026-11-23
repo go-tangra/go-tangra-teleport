@@ -155,10 +155,10 @@ var Abilities = []gatewayclient.Ability{
 
 // Nav lists the navigation contributions.
 var Nav = []gatewayclient.NavEntry{
-	{Title: "Clusters", Path: "/teleport", Icon: "mdi-server-security", Order: 990, Requires: "clusters:read"},
-	{Title: "Alerts", Path: "/teleport/alerts", Icon: "mdi-bell-alert-outline", Order: 992, Requires: "alerts:read"},
+	{Title: "Clusters", Path: "/teleport", Icon: "mdi-shield-key-outline", Order: 990, Requires: "clusters:read"},
+	{Title: "Alerts", Path: "/teleport/alerts", Icon: "mdi-bell-outline", Order: 992, Requires: "alerts:read"},
 	{Title: "Audit", Path: "/teleport/audit", Icon: "mdi-clipboard-text-clock-outline", Order: 994, Requires: "audit:read"},
-	{Title: "Deployments", Path: "/teleport/deployments", Icon: "mdi-rocket-launch-outline", Order: 996, Requires: "deployments:manage"},
+	{Title: "Deployments", Path: "/teleport/deployments", Icon: "mdi-package-down", Order: 996, Requires: "deployments:manage"},
 }
 
 // Routes derives the gateway routes from the OpenAPI document.

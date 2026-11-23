@@ -159,7 +159,7 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
       <UiInput id="resources-label" v-model="filter.label" label="Label (key=value)" class="w-48" data-test="resources-label" @keyup.enter="load()" />
       <UiInput id="resources-q" v-model="filter.q" label="Search" class="w-48" data-test="resources-q" @keyup.enter="load()" />
       <div class="grow" />
-      <UiButton v-if="canEnrollInventory" variant="outline" icon="mdi-server-plus" data-test="resources-enroll-inventory" @click="enrollingInventory = true">
+      <UiButton v-if="canEnrollInventory" variant="outline" icon="mdi-plus-box-outline" data-test="resources-enroll-inventory" @click="enrollingInventory = true">
         Enroll inventory hosts
       </UiButton>
       <UiButton v-if="canEnroll" color="primary" icon="mdi-plus" data-test="resources-enroll" @click="enrolling = true">Enroll</UiButton>
@@ -176,9 +176,9 @@ async function unlink(r: TeleportResource, l: ResourceLink): Promise<void> {
                 {{ l.target_module }}: {{ l.target_id }}{{ l.match === 'candidate' ? ' (candidate)' : '' }}
               </UiBadge>
               <UiButton v-if="canLink && l.match === 'candidate'" size="sm" variant="text" icon="mdi-check" icon-only label="Confirm link" @click="confirmLink(row, l)" />
-              <UiButton v-if="canLink" size="sm" variant="text" icon="mdi-link-off" icon-only label="Remove link" @click="unlink(row, l)" />
+              <UiButton v-if="canLink" size="sm" variant="text" icon="mdi-cancel" icon-only label="Remove link" @click="unlink(row, l)" />
             </template>
-            <UiButton v-if="canLink" size="sm" variant="text" icon="mdi-link-plus" icon-only label="Link" :data-test="'resource-link-' + row.id" @click="openLink(row)" />
+            <UiButton v-if="canLink" size="sm" variant="text" icon="mdi-link-variant" icon-only label="Link" :data-test="'resource-link-' + row.id" @click="openLink(row)" />
           </div>
         </template>
       </UiDataTable>

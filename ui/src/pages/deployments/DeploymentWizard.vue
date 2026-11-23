@@ -209,7 +209,7 @@ startNew()
       <!-- 4. Checks -->
       <template v-else-if="step === 4 && draft">
         <div class="flex justify-end gap-2">
-          <UiButton icon="mdi-check-network" :loading="checking" data-test="wizard-run-checks" @click="runChecks">Run checks</UiButton>
+          <UiButton icon="mdi-lan-connect" :loading="checking" data-test="wizard-run-checks" @click="runChecks">Run checks</UiButton>
           <UiButton variant="soft" :disabled="!allPassed" data-test="wizard-next-4" @click="step = 5">Continue</UiButton>
         </div>
         <UiCard :padded="false">
@@ -237,7 +237,7 @@ startNew()
             the cluster with <code>{{ draft.proxy_addr }}</code> and the <code>tangra-mgmt.identity</code> file.
           </p>
           <div class="flex justify-end mt-4">
-            <UiButton icon="mdi-server-plus" data-test="wizard-register-open" @click="registering = true">Register this cluster</UiButton>
+            <UiButton icon="mdi-plus-box-outline" data-test="wizard-register-open" @click="registering = true">Register this cluster</UiButton>
           </div>
         </template>
       </UiCard>
@@ -246,7 +246,7 @@ startNew()
         <UiDataTable :items="drafts" :columns="draftColumns" row-key="id" caption="Deployment drafts" empty-title="No drafts yet" data-test="wizard-drafts">
           <template #cell-actions="{ row }">
             <div class="flex justify-end gap-1">
-              <UiButton size="sm" variant="text" icon="mdi-open-in-app" icon-only label="Open draft" :data-test="'draft-open-' + row.id" @click="open(row)" />
+              <UiButton size="sm" variant="text" icon="mdi-open-in-new" icon-only label="Open draft" :data-test="'draft-open-' + row.id" @click="open(row)" />
               <UiButton size="sm" variant="text" icon="mdi-delete" icon-only label="Delete draft" :data-test="'draft-remove-' + row.id" @click="remove(row)" />
             </div>
           </template>

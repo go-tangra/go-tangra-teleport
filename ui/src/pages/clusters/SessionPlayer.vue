@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
         <div v-if="!fatal" class="mt-4 flex flex-col gap-3">
           <div class="flex items-center gap-3">
             <UiButton
-              :icon="playing ? 'mdi-pause' : 'mdi-play'"
+              :icon="playing ? 'mdi-stop' : 'mdi-play'"
               icon-only
               :label="playing ? 'Pause' : 'Play'"
               :disabled="starting"

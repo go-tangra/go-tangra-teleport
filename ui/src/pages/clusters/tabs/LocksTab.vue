@@ -95,13 +95,13 @@ async function remove(l: TeleportLock): Promise<void> {
     <UiAlert v-if="error" kind="error" data-test="locks-error">{{ error }}</UiAlert>
     <UiAlert v-if="notice" kind="success" dismissible @close="notice = ''">{{ notice }}</UiAlert>
     <div class="flex justify-end">
-      <UiButton v-if="can('create') && writable" color="error" icon="mdi-lock" data-test="lock-new" @click="openCreate">Create lock</UiButton>
+      <UiButton v-if="can('create') && writable" color="error" icon="mdi-lock-outline" data-test="lock-new" @click="openCreate">Create lock</UiButton>
     </div>
     <UiCard :padded="false">
       <UiDataTable :items="items" :columns="columns" row-key="name" :loading="loading" caption="Active locks" empty-title="No active locks" data-test="locks-table">
         <template #cell-actions="{ row }">
           <div class="flex justify-end">
-            <UiButton v-if="can('delete') && writable" size="sm" variant="text" icon="mdi-lock-open-variant" icon-only label="Remove lock" :data-test="'lock-remove-' + row.name" @click="remove(row)" />
+            <UiButton v-if="can('delete') && writable" size="sm" variant="text" icon="mdi-lock-open-outline" icon-only label="Remove lock" :data-test="'lock-remove-' + row.name" @click="remove(row)" />
           </div>
         </template>
       </UiDataTable>
