@@ -35,6 +35,13 @@ features report `dependency_unavailable` and everything else keeps working.
   scheduled tasks with the scheduler module (see below).
 - `events.tenant_stream`, `events.tenant_deleted_type` — optional: the
   platform stream carrying tenant-deleted events. Empty by default.
+- `recording.max_bytes` (default and maximum 500 MiB, at least 1 MiB),
+  `recording.max_concurrent` (default and maximum 8),
+  `recording.max_per_user` (default and maximum 2) — bounds on in-portal
+  session playback. They can only be lowered. Recordings are read live
+  from the cluster and never stored; the cursor key is per process, so
+  after a restart, or behind a load balancer with several replicas, an
+  open player starts its playback again.
 
 ## Private networks (`allowed_private_networks`)
 

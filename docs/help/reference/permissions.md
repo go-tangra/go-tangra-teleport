@@ -32,12 +32,13 @@ member → viewer).
 | `alerts:manage` | Create, edit and delete alert rules |
 | `provisioning:manage` | Manage role mappings and provision or de-provision tangra users |
 | `deployments:manage` | Use the deployment wizard: drafts, artifacts and checks |
+| `sessions:play` | Play recorded SSH sessions in the portal. A recording shows everything that was on the terminal, so this is separate from `audit:read`, which only lists sessions; every playback is audited |
 
 ## Module roles
 
 | Role | Permissions |
 |---|---|
-| Administrator | Every permission above |
+| Administrator | Every permission above, including `sessions:play` (the only role that holds it) |
 | Operator | Every `:read` permission, plus `tokens:manage`, `locks:manage`, `resources:link` and `resources:enroll` |
 | Auditor | Every `:read` permission, including `audit:read` |
 | Viewer | Every `:read` permission except `audit:read` |

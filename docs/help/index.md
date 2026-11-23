@@ -32,6 +32,8 @@ never shown again after you save it).
 - [Audit events, sessions and alerts](guides/audit-and-alerts.md) — search
   the audit log, play back sessions, and get notified about failed-login
   bursts.
+- [Play recorded SSH sessions](guides/session-playback.md) — watch a
+  session in the portal with `sessions:play`; every playback is audited.
 - [Provision tangra users](guides/provisioning.md) — map tangra roles or
   groups to Teleport roles, invite members, and de-provision leavers.
 - [Deploy a new cluster](guides/deploy-new-cluster.md) — the wizard for a

@@ -49,8 +49,11 @@ plain text and never as formatted content.
 The **Sessions** tab lists the sessions that ended in the chosen range,
 newest first: when they started, the type (server, Kubernetes, database,
 application or desktop), the target, the participants and how long they
-lasted. **Play in Teleport** opens the recording in the Teleport web UI in
-a new tab. You sign in to Teleport there with your own Teleport account.
+lasted. **Open in Teleport** opens the recording in the Teleport web UI in
+a new tab; you sign in to Teleport there with your own Teleport account.
+SSH sessions also have **Play**, which plays the recording inside the
+portal for users with the `sessions:play` permission (administrators): see
+[play recorded SSH sessions](session-playback.md).
 
 ## Alert rules
 
