@@ -49,7 +49,7 @@ Tests are required (constitution IV): write each test before its code.
 
 - [X] T025 Integration test tests/integration/access_test.go against Teleport 18: impersonation for a managed user works, for local admin is refused by Teleport; terminal runs `echo` and the session appears under the managed user; identity file works with the Teleport client library
 - [X] T026 docs/help/guides/portal-access.md (FR-020) incl. management-role change, MFA requirement, deferred fresh-MFA, single-replica limitation
-- [ ] T027 `make test` / `go test ./...`, `go vet`, UI `npm run test` and `npm run build` green
+- [X] T027 `make test` / `go test ./...`, `go vet`, UI `npm run test` and `npm run build` green
 
 ## Dependencies
 
