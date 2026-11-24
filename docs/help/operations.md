@@ -155,3 +155,9 @@ backup, so the referenced secrets must exist where the reference points.
 `deploy/policy.yaml` admits the gateway to the HTTP surface, inventory, asset
 and portal to the `Access` service, and the scheduler to the task executor;
 everything else is denied.
+
+The module itself calls auth for provisioning. Auth's policy must admit it
+with the rule `teleport-directory`: `svc/teleport` to
+`/auth.v1.Profiles/Lookup`, `/auth.v1.Profiles/ListMembers` and
+`/auth.v1.Profiles/Members`. Without that rule provisioning (sync, Provision
+user and the member search) answers *dependency unavailable*.

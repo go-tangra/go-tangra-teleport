@@ -117,6 +117,7 @@ Guard refusals (`403 forbidden`) carry `{reason: "forbidden", message, detail: {
 | `GET /clusters/{id}/managed-users` | users:read | `{items}`: `id, tangra_user_id, teleport_username, state, applied_roles, applied_logins, locked, deprovision_after?, last_synced_at?, created_at` |
 | `POST /clusters/{id}/managed-users` | provisioning:manage | `{tangra_user_id}`: re-verifies the member with auth and provisions now → `201` managed user; the invite goes through notification and is never in a response. Not a member or no matching mapping: `422 validation_failed`; already managed: `409 conflict` (a user in `error` is retried instead) |
 | `POST /clusters/{id}/provisioning/sync` | provisioning:manage | Runs a sync now (including deletions whose grace period has passed); returns `{created, updated, locked, unlocked, deleted, errors}` |
+| `GET /clusters/{id}/provisioning/members` | provisioning:manage | Spec 006: `?q=` (case-insensitive substring of the sign-in e-mail or display name, ≤100 characters), `?limit=` (1..50, default 20) → `{items}`: `user_id, display_name, login` of active tenant members (auth `Profiles.Members`), ordered by id. Bad `q`/`limit`: `422 validation_failed`; auth unreachable: `503 dependency_unavailable` (`detail.dependency = "auth"`) |
 
 Provisioning refusals for a missing dependency are `503 dependency_unavailable`
 with `detail.dependency` = `auth` (the tenant's membership cannot be read;

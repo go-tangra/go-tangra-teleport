@@ -1,9 +1,9 @@
 ---
 title: Known limitations
-summary: What the Teleport module cannot do yet - production cluster registration, provisioning, automatic inventory and asset linking, credential kinds and non-SSH session playback - and what to do meanwhile.
+summary: What the Teleport module cannot do yet - production cluster registration, automatic inventory and asset linking, credential kinds and non-SSH session playback - and what to do meanwhile.
 kind: faq
 order: 95
-tags: [teleport, limitations, faq, warden, provisioning, links, playback]
+tags: [teleport, limitations, faq, warden, links, playback]
 requires: clusters:read
 ---
 These limits apply to this release. Most depend on other platform services
@@ -26,16 +26,6 @@ production:
 Development stacks and the join bundle set `secrets.allow_file: true`.
 That stores identities as files, which is refused in production. Clusters
 registered there work fully. See [Operate Teleport](operations.md).
-
-### Provisioning needs auth member listing
-
-Mappings from tangra roles and groups to Teleport roles can be created,
-edited and removed. **Sync now**, **Provision user** and the scheduled sync
-need the auth service to list the tenant's members with their module
-roles, groups and login. Auth cannot do that yet, so these calls answer
-*dependency unavailable* (`detail.dependency` `auth`) and change nothing.
-Meanwhile, create users by hand on the **Users** tab. See
-[provisioning](guides/provisioning.md).
 
 ### Automatic inventory and asset linking needs a lookup RPC
 

@@ -108,7 +108,7 @@ is `403 forbidden`. A cluster that belongs to another tenant answers
 | `GET /alert-rules` | `alerts:read` |
 | `POST /alert-rules`, `PUT` and `DELETE /alert-rules/{id}` | `alerts:manage` |
 | `GET /clusters/{id}/mappings`, `GET /clusters/{id}/managed-users` | `users:read` |
-| `POST /clusters/{id}/mappings`, `PUT` and `DELETE /clusters/{id}/mappings/{mid}`, `POST /clusters/{id}/managed-users`, `POST /clusters/{id}/provisioning/sync` | `provisioning:manage` |
+| `POST /clusters/{id}/mappings`, `PUT` and `DELETE /clusters/{id}/mappings/{mid}`, `POST /clusters/{id}/managed-users`, `POST /clusters/{id}/provisioning/sync`, `GET /clusters/{id}/provisioning/members` (`?q=` name or sign-in e-mail substring, at most 100 characters; `?limit=` 1..50, default 20; answers `{items: [{user_id, display_name, login}]}`) | `provisioning:manage` |
 | `GET` and `POST /deployments`, `GET`, `PUT` and `DELETE /deployments/{id}`, `GET /deployments/{id}/artifacts/{name}`, `POST /deployments/{id}/checks` | `deployments:manage` |
 
 ## Examples

@@ -99,10 +99,10 @@ when `env: production`. Example: [deploy/container.yaml](deploy/container.yaml).
   enters the module graph.
 
 Known cross-repository gaps (see plan.md, "Deviations"): warden has no
-write RPC (production registration answers `dependency_unavailable`), auth
-has no member listing with module roles (provisioning answers
-`dependency_unavailable`), and inventory/asset have no host lookup
-(automatic linking answers `dependency_unavailable`).
+write RPC (production registration answers `dependency_unavailable`) and
+inventory/asset have no host lookup (automatic linking answers
+`dependency_unavailable`). Provisioning reads members from auth
+`Profiles.Members` (auth policy rule `teleport-directory`).
 
 ## Layout
 

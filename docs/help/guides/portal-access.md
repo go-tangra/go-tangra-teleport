@@ -8,7 +8,9 @@ requires: access:terminal
 ---
 If an administrator has [provisioned](provisioning.md) you on a cluster,
 the portal can give you Teleport access as **your own Teleport user**
-without a separate Teleport sign-in:
+without a separate Teleport sign-in. That user is named after your sign-in
+e-mail (in lower case) and gets the Teleport roles and logins mapped to your
+Teleport module roles and groups:
 
 - **Terminal** — an interactive SSH shell on a node, in the browser.
 - **Download access for tsh** — a short-lived identity file for
@@ -30,7 +32,10 @@ You also need, for every issuance:
 - **A provisioned Teleport user on the cluster.** It is always the one the
   platform created for you; no request can choose another user, and the
   cluster's local users (such as its administrator) can never be used.
-  Otherwise the portal answers *not provisioned*.
+  Otherwise the portal answers *not provisioned* ("You have no Teleport
+  user on this cluster"): ask an administrator to map one of your roles or
+  groups and run **Sync now**, or to provision you with **Provision user**
+  on the cluster's **Provisioning** tab.
 - **A portal session signed in with a second factor (MFA).** A session that
   used only a password can see **My access** but is refused anything else
   with *MFA required*. Sign out and sign in again with your authenticator
