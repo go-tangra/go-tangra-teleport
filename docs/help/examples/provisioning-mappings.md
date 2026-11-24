@@ -1,6 +1,6 @@
 ---
 title: "Example: role mappings for provisioning"
-summary: Map tangra operators, auditors and an on-call group to Teleport roles and logins, see what each member gets, and run a sync - with the current limitation that sync needs auth member listing.
+summary: Map tangra operators, auditors and an on-call group to Teleport roles and logins, see what each member gets, find a member by name and run a sync.
 kind: example
 order: 60
 tags: [teleport, example, provisioning, mappings, roles, logins]
@@ -14,11 +14,10 @@ someone leaves, their Teleport access should go.
 **What you need.** `provisioning:manage` (administrators only). The
 Teleport roles you map to must already exist on the cluster.
 
-> **Current limitation.** Mappings can be created and edited today, but
-> **Sync now** and **Provision user** answer *dependency unavailable*.
-> They need the auth service to list the tenant's members with their roles
-> and groups, and auth does not offer that yet. Nothing is changed on the
-> cluster in the meantime. See [known limitations](../known-limitations.md).
+> **Auth.** Sync and provisioning read the tenant's members from the auth
+> service. While auth cannot be reached they answer *dependency
+> unavailable* and nothing is changed on the cluster. See
+> [provisioning](../guides/provisioning.md).
 
 ## 1. Prepare the Teleport roles
 
@@ -84,11 +83,11 @@ combined:
 
 | tangra member | Matches | Teleport user | Roles | Logins |
 |---|---|---|---|---|
-| `Dana.Smith` (operator, on-call) | operator, on-call group | `dana.smith` | `server-access` | `ubuntu`, `deploy` |
-| `erik` (auditor) | auditor | `erik` | `auditor` | none |
-| `fay` (viewer only) | none | not provisioned | | |
+| `Dana.Smith@example.com` (operator, on-call) | operator, on-call group | `dana.smith@example.com` | `server-access` | `ubuntu`, `deploy` |
+| `erik@example.com` (auditor) | auditor | `erik@example.com` | `auditor` | none |
+| `fay@example.com` (viewer only) | none | not provisioned | | |
 
-The Teleport username is the tangra login in lower case. Any character
+The Teleport username is the member's sign-in e-mail in lower case. Any character
 other than letters, digits, `.`, `_`, `@` and `-` becomes `-`. If that
 name is taken by a Teleport user the platform did not create, the member
 is skipped and the conflict is recorded in the module audit trail. Hand-made
@@ -96,12 +95,16 @@ users are never changed.
 
 ## 4. Sync and provision
 
-Once auth offers member listing, this is how you use it:
+Through the API:
 
 ```bash
 # Reconcile the whole cluster now (the scheduler also runs it every 15 minutes).
 tsend -X POST "$API/clusters/$CLUSTER/provisioning/sync"
 # {"created": 2, "updated": 0, "locked": 0, "unlocked": 0, "deleted": 0, "errors": 0}
+
+# Find a member by part of their name or sign-in e-mail (at most 50, default 20).
+tget "$API/clusters/$CLUSTER/provisioning/members?q=dana&limit=5"
+# {"items": [{"user_id": "<tangra-user-uuid>", "display_name": "Dana Smith", "login": "dana.smith@example.com"}]}
 
 # Provision one member at once. The invite goes to them through notifications.
 tsend -X POST "$API/clusters/$CLUSTER/managed-users" -d '{"tangra_user_id": "<tangra-user-uuid>"}'
@@ -110,7 +113,7 @@ tsend -X POST "$API/clusters/$CLUSTER/managed-users" -d '{"tangra_user_id": "<ta
 tget "$API/clusters/$CLUSTER/managed-users" | jq -r '.items[] | [.teleport_username, .state] | @tsv'
 ```
 
-Today both changing calls answer:
+While auth cannot be reached, these calls answer:
 
 ```json
 {"reason": "dependency_unavailable",

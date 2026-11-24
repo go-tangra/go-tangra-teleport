@@ -105,7 +105,9 @@ function loop(now: number): void {
   last = now
   apply(player.tick(dt))
   sync()
-  if (player.waiting) void fetchNext()
+  // After a failed read only Retry reads again: fetching here would clear
+  // the warning and ask the cluster again on every frame.
+  if (player.waiting && !partial.value && !fatal.value) void fetchNext()
   if (player.playing) raf = requestAnimationFrame(loop)
 }
 

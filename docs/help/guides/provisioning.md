@@ -3,7 +3,7 @@ title: Provision tangra users into Teleport
 summary: Map tangra roles or groups to Teleport roles and logins, provision members with an invite through notifications, and de-provision them automatically when they leave.
 kind: guide
 order: 50
-tags: [teleport, provisioning, mappings, invite, de-provisioning, lock, sync]
+tags: [teleport, provisioning, mappings, invite, de-provisioning, lock, sync, members, search]
 requires: users:read
 ---
 Provisioning keeps a cluster's Teleport users in line with tangra: members
@@ -17,8 +17,12 @@ provision a user or run a sync; operators cannot.
 
 Open a cluster and choose the **Provisioning** tab, then **Add mapping**.
 
-1. Choose what to map: a tangra **module role** (its slug, for example
-   `operator`) or a tangra **group** (its id).
+1. Choose what to map: a **module role** of the Teleport module
+   (**administrator**, **operator**, **auditor** or **viewer**, picked from
+   the list) or a tangra **group** (type its id). Members match a module
+   role whether they hold it directly or through a group. Built-in platform
+   roles (such as `owner` or `member`), custom roles and other modules'
+   roles are not reported to provisioning, so they cannot be mapped.
 2. Enter the **Teleport roles** to grant, separated by commas. Each one must
    already exist on the cluster; a role the cluster lacks is refused.
 3. Optionally enter **logins** (for example `ubuntu`): the operating-system
@@ -33,13 +37,17 @@ maps, remove it and add a new one.
 
 Members are provisioned at each **sync** (every 15 minutes once the
 platform scheduler runs the task, or now with **Sync now**). To provision one
-member at once, choose **Provision user** and enter their tangra user id.
+member at once, choose **Provision user** and search for them: type part of
+their name or sign-in e-mail. The list shows each member's display name
+and e-mail; the first members appear as soon as the dialog opens. Pick the
+member and choose **Provision**.
 
-- The Teleport username is the member's tangra login in lower case, with any
-  character other than letters, digits, `.`, `_`, `@` and `-` replaced by
-  `-`. If that name is already taken by a Teleport user tangra did not
-  create, or by the cluster's management identity, the member is **not**
-  provisioned: the conflict is counted and recorded in the audit trail.
+- The Teleport username is the member's **sign-in e-mail** in lower case,
+  for example `dana.smith@example.com`. Any character other than letters,
+  digits, `.`, `_`, `@` and `-` is replaced by `-`. If that name is already
+  taken by a Teleport user tangra did not create, or by the cluster's
+  management identity, the member is **not** provisioned: the conflict is
+  counted and recorded in the audit trail.
 - The member receives the **invite link** through tangra notifications. The
   link is never shown on this page, logged or stored. If the invite cannot
   be delivered, the Teleport user is removed again and the member shows
@@ -63,11 +71,17 @@ anyone.
 
 ## When provisioning is unavailable
 
-Provisioning needs the auth service to list the tenant's members with their
-roles and groups. When that is not possible, **Sync now** and **Provision
-user** answer *dependency unavailable* and nothing is changed; mappings can
-still be edited. In this release the auth service does not yet offer that
-listing, so provisioning stays unavailable until it does.
+Provisioning reads the tenant's members (sign-in e-mail, display name,
+Teleport module roles and groups) from the auth service. When auth cannot
+be reached, **Sync now**, **Provision user** and the member search answer
+*dependency unavailable* (`detail.dependency` `auth`) and nothing is
+changed; mappings can still be edited, and the next sync catches up.
+
+The platform operator must allow the module to ask auth: auth's service
+policy needs the rule `teleport-directory`, which admits
+`spiffe://<trust domain>/svc/teleport` to `/auth.v1.Profiles/Lookup`,
+`/auth.v1.Profiles/ListMembers` and `/auth.v1.Profiles/Members`. Without
+it every provisioning call is *dependency unavailable*.
 
 ## Managed users
 

@@ -14,6 +14,17 @@ const logins = z
   .transform(splitList)
   .pipe(z.array(z.string().regex(LOGIN, 'Logins are letters, digits, . _ - and start with a letter or _.')).max(32, 'At most 32.'))
 
+/**
+ * The module's own role slugs (pkg/teleportmanifest Roles). Auth reports only
+ * these to provisioning, so a module_role mapping can only match one of them.
+ */
+export const MODULE_ROLES = [
+  { slug: 'administrator', title: 'Administrator' },
+  { slug: 'operator', title: 'Operator' },
+  { slug: 'auditor', title: 'Auditor' },
+  { slug: 'viewer', title: 'Viewer' },
+] as const
+
 /** POST /clusters/{id}/mappings. */
 export const mappingSchema = z.object({
   subject_kind: z.enum(['module_role', 'group']),

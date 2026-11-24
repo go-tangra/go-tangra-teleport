@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -13,10 +14,11 @@ var ErrMembershipUnavailable = errors.New("provisioning: tangra membership unava
 
 // Member is one active tangra member of a tenant as auth reports it.
 type Member struct {
-	UserID string
-	Login  string   // the tangra login; the Teleport username is derived from it (Username)
-	Roles  []string // module role slugs held in this module
-	Groups []string // group ids
+	UserID      string
+	Login       string   // the sign-in e-mail; the Teleport username is derived from it (Username)
+	DisplayName string   // for pickers only; never part of the Teleport user
+	Roles       []string // module role slugs held in this module
+	Groups      []string // group ids
 }
 
 func cloneMember(m Member) Member {
@@ -24,23 +26,25 @@ func cloneMember(m Member) Member {
 	return m
 }
 
-// Membership reads a tenant's members from auth over mTLS (research D10).
-// Members lists them for a sync; Member re-reads one member before any lock
-// or delete (SR-006), so a stale listing never de-provisions anyone. Both
-// answer ErrMembershipUnavailable (wrapped) when auth cannot be asked.
+// Membership reads a tenant's members from auth over mTLS (research D10;
+// AuthMembership in production). Members lists them for a sync; Member
+// re-reads one member before any lock or delete (SR-006), so a stale listing
+// never de-provisions anyone; Search finds members for the "Provision user"
+// picker. All answer ErrMembershipUnavailable (wrapped) when auth cannot be
+// asked.
 type Membership interface {
 	Members(ctx context.Context, tenantID string) ([]Member, error)
 	// Member returns the member and true, or false when the user is no
 	// longer an active member of the tenant.
 	Member(ctx context.Context, tenantID, userID string) (Member, bool, error)
+	// Search returns at most limit members whose login or display name
+	// contains query (case-insensitive; empty matches everyone), by id.
+	Search(ctx context.Context, tenantID, query string, limit int) ([]Member, error)
 }
 
-// Unavailable is the production membership until auth can list members with
-// their module roles, groups and login: the auth SDK (v4.1.0) offers only
-// Profiles.ListMembers (active ids, policy-limited to the notification
-// module) and Profiles.Lookup (display names). Every read is
-// ErrMembershipUnavailable, so provisioning reports dependency_unavailable
-// and changes nothing (plan.md deviations, Phase 7). NEEDS CROSS-REPO.
+// Unavailable is a membership that cannot reach auth (a nil
+// Service.Membership): every read is ErrMembershipUnavailable, so
+// provisioning reports dependency_unavailable and changes nothing.
 type Unavailable struct{}
 
 // Members implements Membership.
@@ -53,6 +57,11 @@ func (Unavailable) Member(context.Context, string, string) (Member, bool, error)
 	return Member{}, false, ErrMembershipUnavailable
 }
 
+// Search implements Membership.
+func (Unavailable) Search(context.Context, string, string, int) ([]Member, error) {
+	return nil, ErrMembershipUnavailable
+}
+
 // FakeMembership is an in-memory Membership for tests. Set replaces both the
 // listing and the members auth confirms; SetListed replaces the listing
 // only (a stale page or a forged hint), so re-verification can be tested.
@@ -62,6 +71,7 @@ type FakeMembership struct {
 	current   map[string]Member
 	err       error
 	memberErr error
+	queries   []string
 }
 
 // NewFakeMembership builds a fake with members.
@@ -137,6 +147,34 @@ func (f *FakeMembership) Member(_ context.Context, _, userID string) (Member, bo
 	}
 	m, ok := f.current[userID]
 	return cloneMember(m), ok, nil
+}
+
+// Search implements Membership over the listing and records the query.
+func (f *FakeMembership) Search(_ context.Context, _, query string, limit int) ([]Member, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queries = append(f.queries, query)
+	if f.err != nil {
+		return nil, unavailable(f.err)
+	}
+	q := strings.ToLower(query)
+	out := []Member{}
+	for _, m := range f.listed {
+		if len(out) == limit {
+			break
+		}
+		if strings.Contains(strings.ToLower(m.Login), q) || strings.Contains(strings.ToLower(m.DisplayName), q) {
+			out = append(out, cloneMember(m))
+		}
+	}
+	return out, nil
+}
+
+// Queries returns the search queries seen so far.
+func (f *FakeMembership) Queries() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.queries)
 }
 
 var (

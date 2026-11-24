@@ -4,14 +4,15 @@
 // manages with their state, "provision" for one member and "sync now".
 // Invites go to the user through notification and never reach this page.
 // Unmanaged Teleport users are never shown or changed here.
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiInput, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
 import { explain } from '@/api/client'
 import { managedApi, mappingsApi } from '@/stores/provisioning'
-import { mappingEditSchema, mappingSchema, provisionSchema } from '@/schemas'
+import { MODULE_ROLES, mappingEditSchema, mappingSchema, provisionSchema } from '@/schemas'
+import MemberPicker from '@/components/MemberPicker.vue'
 import type { Cluster, ManagedState, ManagedUser, ProvisioningSummary, RoleMapping } from '@/api/types'
 import { formatTime } from '../status'
 
@@ -78,8 +79,15 @@ const kinds = [
   { title: 'Tangra module role', value: 'module_role' },
   { title: 'Tangra group', value: 'group' },
 ]
+// Auth reports only this module's own role slugs to provisioning (never
+// built-in, custom or other modules' roles), so those are the choices.
+const moduleRoles = MODULE_ROLES.map((r) => ({ title: `${r.title} (${r.slug})`, value: r.slug }))
+// Switching between role and group starts the subject afresh.
+watch(() => createForm.values.subject_kind, (kind, was) => {
+  if (was !== undefined && kind !== was) createForm.field('subject_ref')['onUpdate:modelValue'](kind === 'module_role' ? 'operator' : '')
+})
 function openCreate(): void {
-  createForm.reset({ subject_kind: 'module_role', subject_ref: '', teleport_roles: '', logins: '' })
+  createForm.reset({ subject_kind: 'module_role', subject_ref: 'operator', teleport_roles: '', logins: '' })
   creating.value = true
 }
 async function saveCreate(): Promise<void> {
@@ -214,7 +222,11 @@ async function syncNow(): Promise<void> {
         <div class="flex flex-col gap-4">
           <UiAlert v-if="createForm.serverError.value" kind="error">{{ createForm.serverError.value }}</UiAlert>
           <UiSelect v-bind="createForm.field('subject_kind')" label="Map" :options="kinds" :clearable="false" required data-test="mapping-kind" />
-          <UiInput v-bind="createForm.field('subject_ref')" label="Tangra role slug or group id" required hint="For example operator." data-test="mapping-ref" />
+          <UiSelect
+            v-if="createForm.values.subject_kind === 'module_role'" v-bind="createForm.field('subject_ref')" label="Module role"
+            :options="moduleRoles" :clearable="false" required hint="Members holding this Teleport-module role, directly or through a group." data-test="mapping-ref"
+          />
+          <UiInput v-else v-bind="createForm.field('subject_ref')" label="Tangra group id" required hint="The id of a tangra group; its members are provisioned." data-test="mapping-ref" />
           <UiInput v-bind="createForm.field('teleport_roles')" label="Teleport roles" required hint="Comma-separated; each must exist on the cluster." data-test="mapping-roles" />
           <UiInput v-bind="createForm.field('logins')" label="Logins" hint="Comma-separated, for example ubuntu." data-test="mapping-logins" />
         </div>
@@ -243,10 +255,12 @@ async function syncNow(): Promise<void> {
       <UiForm :form="provisionForm">
         <div class="flex flex-col gap-4">
           <UiAlert v-if="provisionForm.serverError.value" kind="error">{{ provisionForm.serverError.value }}</UiAlert>
-          <UiInput
-            v-bind="provisionForm.field('tangra_user_id')" label="Tangra user id" required
-            hint="The member must hold a mapped role or group. The invite is sent to them, not shown here." data-test="provision-user"
+          <MemberPicker
+            v-if="provisioning" v-bind="provisionForm.field('tangra_user_id')" :cluster-id="cluster.id" label="Tangra member" required data-test="provision-user"
           />
+          <p class="text-sm opacity-70">
+            The member must hold a mapped role or group. Their Teleport username is their sign-in e-mail; the invite is sent to them, not shown here.
+          </p>
         </div>
       </UiForm>
       <template #actions>

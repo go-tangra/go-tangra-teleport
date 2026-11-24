@@ -1,5 +1,5 @@
 import { api } from '@/api/client'
-import type { ManagedUser, ProvisioningSummary, RoleMapping, RoleMappingInput, RoleMappingUpdate } from '@/api/types'
+import type { ManagedUser, MemberCandidate, ProvisioningSummary, RoleMapping, RoleMappingInput, RoleMappingUpdate } from '@/api/types'
 
 // Role mappings, managed users and "sync now" of one cluster (US5). Invites
 // go to the tangra user through notification; no response carries them.
@@ -16,4 +16,16 @@ export const managedApi = {
   list: (id: string) => api<{ items: ManagedUser[] }>('GET', c(id) + '/managed-users'),
   provision: (id: string, tangraUserId: string) => api<ManagedUser>('POST', c(id) + '/managed-users', { tangra_user_id: tangraUserId }),
   sync: (id: string) => api<ProvisioningSummary>('POST', c(id) + '/provisioning/sync'),
+}
+
+/** Tenant members for the "Provision user" picker (provisioning:manage). */
+export const membersApi = {
+  search: (id: string, q: string, limit = 20) =>
+    api<{ items: MemberCandidate[] }>('GET', c(id) + '/provisioning/members?' + new URLSearchParams({ q, limit: String(limit) }).toString()),
+}
+
+/** "Display name (login)", or whichever of the two is known. */
+export function memberTitle(m: MemberCandidate): string {
+  if (m.display_name && m.login && m.display_name !== m.login) return `${m.display_name} (${m.login})`
+  return m.display_name || m.login || m.user_id
 }

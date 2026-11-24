@@ -786,6 +786,19 @@ components:
       required: [tangra_user_id]
       properties:
         tangra_user_id: { type: string, format: uuid }
+    MemberCandidate:
+      type: object
+      required: [user_id, display_name, login]
+      description: An active tenant member for the "Provision user" picker; login is the sign-in e-mail.
+      properties:
+        user_id: { type: string }
+        display_name: { type: string }
+        login: { type: string }
+    MemberCandidatePage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/MemberCandidate' } }
     ProvisioningSummary:
       type: object
       required: [created, updated, locked, unlocked, deleted, errors]
@@ -1586,6 +1599,24 @@ paths:
       parameters: [{ $ref: '#/components/parameters/csrf' }]
       responses:
         '200': { description: the summary, content: { application/json: { schema: { $ref: '#/components/schemas/ProvisioningSummary' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /api/teleport/v1/clusters/{id}/provisioning/members:
+    parameters: [{ $ref: '#/components/parameters/id' }]
+    get:
+      operationId: searchTeleportProvisioningMembers
+      description: >-
+        Searches the active members of the cluster's tenant (auth
+        Profiles.Members) for the "Provision user" picker: q is a
+        case-insensitive substring of the login (sign-in e-mail) or the
+        display name. Ordered by user id; at most limit (default 20). 422
+        validation_failed for a bad q or limit; 503 dependency_unavailable
+        (detail.dependency auth) when auth cannot be asked.
+      x-freya-permission: 'provisioning:manage'
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200': { description: the matching members, content: { application/json: { schema: { $ref: '#/components/schemas/MemberCandidatePage' } } } }
         default: { $ref: '#/components/responses/Error' }
   # ---- Deployment wizard (US6)
   /api/teleport/v1/deployments:

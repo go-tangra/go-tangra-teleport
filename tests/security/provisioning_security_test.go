@@ -72,6 +72,7 @@ func TestOperatorCannotManageMappings(t *testing.T) {
 			{"DELETE", base + "/mappings/" + mid, nil},
 			{"POST", base + "/managed-users", map[string]any{"tangra_user_id": memberID}},
 			{"POST", base + "/provisioning/sync", nil},
+			{"GET", base + "/provisioning/members?q=bob", nil},
 		} {
 			if code, m := f.do(t, c.method, c.path, token, c.body); code != http.StatusForbidden || m["reason"] != "forbidden" {
 				t.Errorf("%s %s %s: %d %v", token, c.method, c.path, code, m)
@@ -88,6 +89,9 @@ func TestOperatorCannotManageMappings(t *testing.T) {
 	theirs := "/clusters/" + f.cluster(t, "admin-b")
 	if code, _ := f.do(t, "POST", theirs+"/provisioning/sync", "admin-a", nil); code != http.StatusNotFound {
 		t.Fatalf("cross-tenant sync: %d", code)
+	}
+	if code, _ := f.do(t, "GET", theirs+"/provisioning/members", "admin-a", nil); code != http.StatusNotFound {
+		t.Fatalf("cross-tenant member search: %d", code)
 	}
 }
 

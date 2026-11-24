@@ -352,6 +352,13 @@ export interface ManagedUser {
   created_at: string
 }
 
+/** A tenant member offered by the "Provision user" picker; login is the sign-in e-mail. */
+export interface MemberCandidate {
+  user_id: string
+  display_name: string
+  login: string
+}
+
 export interface ProvisioningSummary {
   created: number
   updated: number
