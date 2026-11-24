@@ -63,10 +63,9 @@ func (a NotifyAlerter) Alert(ctx context.Context, c repo.Cluster, condition, key
 	if a.Notify == nil || a.Recipients == nil {
 		return
 	}
-	for _, to := range a.Recipients(ctx, c.TenantID, c.ID, condition) {
-		if err := a.Notify.Send(ctx, notify.Message{TenantID: c.TenantID, Template: notify.TemplateAlert, To: to, Vars: vars, CorrelationID: key}); err != nil && a.Log != nil {
-			a.Log.WarnContext(ctx, "alert not sent", "cluster_id", c.ID, "condition", condition, "err", err)
-		}
+	to := a.Recipients(ctx, c.TenantID, c.ID, condition)
+	if err := notify.SendEach(ctx, a.Notify, notify.Message{TenantID: c.TenantID, Template: notify.TemplateAlert, Vars: vars, CorrelationID: key}, to); err != nil && a.Log != nil {
+		a.Log.WarnContext(ctx, "alert not sent", "cluster_id", c.ID, "condition", condition, "err", err)
 	}
 }
 

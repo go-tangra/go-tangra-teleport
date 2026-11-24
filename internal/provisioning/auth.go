@@ -8,6 +8,8 @@ import (
 
 	authv1 "github.com/go-tangra/go-tangra-auth/sdk/v4/api/proto/auth/v1"
 	"google.golang.org/grpc"
+
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/notify"
 )
 
 // Auth Profiles.Members bounds (auth.proto ListMemberDetailsRequest).
@@ -113,4 +115,27 @@ func (a AuthMembership) Search(ctx context.Context, tenantID, query string, limi
 	return out, nil
 }
 
-var _ Membership = AuthMembership{}
+// Addresses implements notify.Directory: the login (sign-in e-mail) of
+// every id that is an active member, through the user_ids filter in chunks
+// of authPageSize; ids that are no active member, or have no login, are
+// absent. Any failure is ErrMembershipUnavailable (wrapped).
+func (a AuthMembership) Addresses(ctx context.Context, tenantID string, userIDs []string) (map[string]string, error) {
+	out := map[string]string{}
+	for chunk := range slices.Chunk(userIDs, authPageSize) {
+		res, err := a.call(ctx, &authv1.ListMemberDetailsRequest{TenantId: tenantID, UserIds: chunk, Limit: authPageSize})
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range res.GetMembers() {
+			if d.GetLogin() != "" && slices.Contains(chunk, d.GetUserId()) {
+				out[d.GetUserId()] = d.GetLogin()
+			}
+		}
+	}
+	return out, nil
+}
+
+var (
+	_ Membership       = AuthMembership{}
+	_ notify.Directory = AuthMembership{}
+)

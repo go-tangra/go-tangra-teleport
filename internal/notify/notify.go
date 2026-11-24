@@ -47,7 +47,7 @@ var (
 type Message struct {
 	TenantID      string
 	Template      string // one of Templates
-	To            string // recipient, valid for the channel the template uses
+	To            string // recipient: an e-mail address, or a tangra user id a Resolver turns into one
 	Vars          map[string]string
 	CorrelationID string
 }

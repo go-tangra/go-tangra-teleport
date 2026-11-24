@@ -452,16 +452,10 @@ func (e *Engine) deliver(ctx context.Context, c repo.Cluster, r repo.AlertRule, 
 	case err != nil:
 		return err
 	}
-	var failed error
-	if e.Notify == nil {
-		failed = notify.ErrUnavailable
-	}
-	for _, to := range r.Recipients.UserIDs {
-		if failed != nil {
-			break
-		}
-		failed = e.Notify.Send(ctx, notify.Message{TenantID: c.TenantID, Template: notify.TemplateAlert, To: to, Vars: vars, CorrelationID: wk})
-	}
+	// The recipients are user ids: the notifier resolves them to e-mail
+	// addresses in one lookup and skips those that are no active member.
+	failed := notify.SendEach(ctx, e.Notify, notify.Message{TenantID: c.TenantID, Template: notify.TemplateAlert, Vars: vars, CorrelationID: wk},
+		r.Recipients.UserIDs)
 	if failed != nil {
 		if rerr := e.Repo.ReleaseDelivery(ctx, c.TenantID, r.ID, c.ID, wk); rerr != nil && !errors.Is(rerr, repo.ErrNotFound) {
 			failed = errors.Join(failed, rerr)

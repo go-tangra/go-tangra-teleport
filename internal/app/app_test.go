@@ -21,6 +21,7 @@ import (
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/lease"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/memstore"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/notify"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/provisioning"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/repo"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/resources"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/secrets"
@@ -279,6 +280,9 @@ func TestBuildWiresAlerts(t *testing.T) {
 	o.Checker = authz.Static{"u1": authz.Permissions}
 	sent := notify.NewFake()
 	o.Notify = sent
+	// Rule recipients are user ids; the wired notifier resolves them to the
+	// member's sign-in e-mail through the membership.
+	o.Membership = provisioning.NewFakeMembership(provisioning.Member{UserID: "u1", Login: "u1@example.com"})
 	a, err := Build(context.Background(), testConfig(), o)
 	if err != nil {
 		t.Fatal(err)
@@ -311,8 +315,8 @@ func TestBuildWiresAlerts(t *testing.T) {
 	late := lateAlerter{a}
 	late.Alert(context.Background(), c, repo.ConditionResourceOffline, "k", map[string]string{"resource": "n1"})
 	late.Alert(context.Background(), c, repo.ConditionResourceOffline, "k", map[string]string{"resource": "n1"})
-	if len(sent.Sent()) != 1 {
-		t.Fatalf("sent %d", len(sent.Sent()))
+	if len(sent.Sent()) != 1 || sent.Sent()[0].To != "u1@example.com" {
+		t.Fatalf("sent %+v", sent.Sent())
 	}
 	a.Alerter = nil
 	late.Alert(context.Background(), c, repo.ConditionResourceOffline, "k2", nil)
