@@ -14,6 +14,7 @@ import { UiAlert, UiBadge, UiButton, UiCard, UiPage, UiSkeleton } from '@go-tang
 import { explain } from '@/api/client'
 import type { TerminalView } from '@/api/types'
 import { accessApi, fromBase64 } from '@/stores/access'
+import { claim, drop, release } from '@/stores/terminalClaims'
 import { mirrorStyles, type StyleMirror } from '@/player/cspStyles'
 import { formatTime } from './status'
 
@@ -46,6 +47,9 @@ const clusterId = String(route.params.id ?? '')
 const node = String(route.query.node ?? '')
 const login = String(route.query.login ?? '')
 const host = String(route.query.host ?? node)
+// Every mount of this page in the tab shares one terminal (terminalClaims).
+const claimKey = [clusterId, node, login].join('|')
+let claimed = false // this mount holds the shared terminal
 
 const view = ref<TerminalView | null>(null)
 const starting = ref(true)
@@ -76,6 +80,7 @@ function fitSize(): { cols: number; rows: number } {
 }
 
 function finish(reason: string): void {
+  drop(claimKey)
   ended.value = END_TEXT[reason] ?? 'The terminal ended.'
   connected.value = false
   source?.close()
@@ -163,6 +168,7 @@ async function end(): Promise<void> {
 
 function onUnload(): void {
   if (view.value && !ended.value) accessApi.closeOnUnload(clusterId, view.value.terminal_id)
+  drop(claimKey)
 }
 
 onMounted(async () => {
@@ -191,7 +197,8 @@ onMounted(async () => {
     return
   }
   try {
-    view.value = await accessApi.create(clusterId, { node, login, cols: size.cols, rows: size.rows })
+    view.value = await claim(claimKey, () => accessApi.create(clusterId, { node, login, cols: size.cols, rows: size.rows }))
+    claimed = true
   } catch (e) {
     const hint = IDENTITY_HINT[(e as { reason?: string }).reason ?? '']
     error.value = hint ? `${explain(e)} ${hint}` : explain(e)
@@ -199,10 +206,7 @@ onMounted(async () => {
     return
   }
   starting.value = false
-  if (closed) {
-    accessApi.closeOnUnload(clusterId, view.value.terminal_id)
-    return
-  }
+  if (closed) return // unmounted meanwhile; its release closes the terminal unless a remount claims it
   connect()
   term?.focus()
   keepalive = setInterval(() => {
@@ -219,7 +223,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   closed = true
   window.removeEventListener('pagehide', onUnload)
-  if (view.value && !ended.value) void accessApi.close(clusterId, view.value.terminal_id).catch(() => undefined)
+  if (claimed && !ended.value) release(claimKey, (tid) => void accessApi.close(clusterId, tid).catch(() => undefined))
   source?.close()
   source = null
   if (keepalive) clearInterval(keepalive)
