@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/notify"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/provisioning"
@@ -25,8 +26,8 @@ func (s *Server) failProvisioning(w http.ResponseWriter, r *http.Request, err er
 	}
 }
 
-// registerProvisioning mounts the role-mapping, managed-user and sync routes
-// (US5). No response carries an invite link: it goes through notification.
+// registerProvisioning mounts the role-mapping, managed-user, sync and
+// member-search routes (US5). No response carries an invite link: it goes through notification.
 func (s *Server) registerProvisioning(svc *provisioning.Service) {
 	s.MustHandle("GET", Prefix+"/clusters/{id}/mappings", func(w http.ResponseWriter, r *http.Request) {
 		p, err := svc.ListMappings(r.Context(), r.PathValue("id"))
@@ -97,5 +98,22 @@ func (s *Server) registerProvisioning(svc *provisioning.Service) {
 			return
 		}
 		WriteJSON(w, http.StatusOK, sum)
+	})
+	s.MustHandle("GET", Prefix+"/clusters/{id}/provisioning/members", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		limit := 0
+		if v := q.Get("limit"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n == 0 {
+				n = -1 // refused by the service as validation_failed
+			}
+			limit = n
+		}
+		p, err := svc.SearchMembers(r.Context(), r.PathValue("id"), q.Get("q"), limit)
+		if err != nil {
+			s.failProvisioning(w, r, err)
+			return
+		}
+		WriteJSON(w, http.StatusOK, p)
 	})
 }
