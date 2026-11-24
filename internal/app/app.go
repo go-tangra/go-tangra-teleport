@@ -98,9 +98,12 @@ type Options struct {
 	// Inventory overrides the inventory TeleportJoinDeliveryService dial
 	// (spec 002; tests: a fake).
 	Inventory enroll.Inventory
-	Freya     []freya.Option
-	Migrate   bool
-	Remote    fs.FS // built federated UI remote (nil serves no remote)
+	// Membership overrides the tenant membership source of provisioning
+	// (default: auth Profiles.Members; tests: provisioning.NewFakeMembership).
+	Membership provisioning.Membership
+	Freya      []freya.Option
+	Migrate    bool
+	Remote     fs.FS // built federated UI remote (nil serves no remote)
 
 	// dialer replaces teleportapi.Dial under the default pool dial and the
 	// clusters verification dial (tests).
@@ -298,7 +301,7 @@ func (a *App) buildStorage(ctx context.Context, cfg config.Config, o Options) (e
 func (a *App) buildPeers(ctx context.Context, cfg config.Config, o Options) error {
 	a.Verifier, a.Checker = o.Verifier, o.Checker
 	if a.Verifier == nil || a.Checker == nil {
-		conn, err := a.Freya.Client(ctx, "auth")
+		conn, err := a.Freya.Client(ctx, AuthService)
 		if err != nil {
 			return fmt.Errorf("auth client: %w", err)
 		}
@@ -482,13 +485,17 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 	a.AddWorker("terminals", a.Terminals.Run)
 	a.closers = append(a.closers, a.Terminals.Shutdown)
 
-	// US5: role mappings and provisioning. The auth SDK cannot list a
-	// tenant's members with their module roles, groups and login, so the
-	// membership is Unavailable: syncs and provisioning answer
-	// dependency_unavailable and change nothing, mappings work (NEEDS
-	// CROSS-REPO, plan.md Phase 7 deviations).
+	// US5: role mappings and provisioning. The membership (login, module
+	// roles, groups) comes from auth Profiles.Members over a lazily dialled
+	// mesh connection, so the module starts while auth is down; while it is,
+	// syncs, provisioning and the member search answer
+	// dependency_unavailable and change nothing (spec 006).
+	membership := o.Membership
+	if membership == nil {
+		membership = provisioning.AuthMembership{Client: authv1.NewProfilesClient(&lazyConn{app: a, service: AuthService})}
+	}
 	a.Provisioning = &provisioning.Service{Clusters: a.Clusters, Repo: a.Repo, Users: a.Users, Locks: a.Locks,
-		Membership: provisioning.Unavailable{}, Notify: a.Notify, Audit: a.Audit, Events: a.Events, Log: a.Log,
+		Membership: membership, Notify: a.Notify, Audit: a.Audit, Events: a.Events, Log: a.Log,
 		Grace: cfg.DeprovisionGrace()}
 
 	// US6: the deployment wizard. Prerequisite checks go only through the
@@ -502,6 +509,9 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 
 // InventoryService is the mesh name of the inventory module.
 const InventoryService = "inventory"
+
+// AuthService is the mesh name of the auth module.
+const AuthService = "auth"
 
 // lateAlerter resolves App.Alerter at alert time, so a later story can
 // replace it after the sweep is built.
