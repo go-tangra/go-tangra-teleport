@@ -13,7 +13,7 @@ require (
 	github.com/go-tangra/go-tangra-portal/sdk/v4 v4.2.0
 	github.com/go-tangra/go-tangra-scheduler/sdk/v4 v4.0.0
 	github.com/go-tangra/go-tangra-warden/sdk/v4 v4.0.0
-	github.com/go-tangra/go-tangra/v4 v4.10.0
+	github.com/go-tangra/go-tangra/v4 v4.10.1
 	github.com/gravitational/teleport/api v0.0.0-20260825163510-1283425b60ec
 	github.com/gravitational/trace v1.5.4
 	github.com/jackc/pgx/v5 v5.11.0
