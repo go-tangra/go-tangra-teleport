@@ -365,7 +365,7 @@ func (s *Service) Provision(ctx context.Context, clusterID string, in ProvisionI
 	}
 	roles, logins := desired(m, r.maps)
 	if len(roles) == 0 {
-		return ManagedView{}, &clusters.FieldError{Field: "tangra_user_id", Msg: "no role mapping of this cluster matches the user"}
+		return ManagedView{}, &clusters.FieldError{Field: "tangra_user_id", Msg: "this member holds no mapped tangra role or group"}
 	}
 	if i >= 0 { // a failed provisioning is retried
 		if _, err := cl.GetUser(ctx, rows[i].TeleportUsername); notFound(err) {

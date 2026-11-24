@@ -410,12 +410,25 @@ func (a *App) buildTeleport(cfg config.Config, o Options) error {
 // notification sender (dialled on first use, so the module runs while
 // notification is down) and US1 clusters with its leased health monitor.
 func (a *App) buildDomain(cfg config.Config, o Options) {
-	a.Notify = o.Notify
-	if a.Notify == nil {
-		a.Notify = notify.NewClient(func(ctx context.Context) (grpc.ClientConnInterface, error) {
+	// The membership (login, module roles, groups) comes from auth
+	// Profiles.Members over a lazily dialled mesh connection, so the module
+	// starts while auth is down (spec 006). It is also the notification
+	// recipients' directory: every recipient is a tangra user id, and the
+	// notification module's e-mail channel takes an address (the member's
+	// login), so the sender resolves ids first; while auth is down a send is
+	// ErrUnavailable.
+	membership := o.Membership
+	if membership == nil {
+		membership = provisioning.AuthMembership{Client: authv1.NewProfilesClient(&lazyConn{app: a, service: AuthService})}
+	}
+	sender := o.Notify
+	if sender == nil {
+		sender = notify.NewClient(func(ctx context.Context) (grpc.ClientConnInterface, error) {
 			return a.Freya.Client(ctx, notifyclient.Service)
 		}, a.Log)
 	}
+	dir, _ := membership.(notify.Directory)
+	a.Notify = notify.NewResolver(sender, dir, a.Log)
 	verify := o.dialer
 	if verify == nil {
 		verify = teleportapi.Dial
@@ -485,15 +498,9 @@ func (a *App) buildDomain(cfg config.Config, o Options) {
 	a.AddWorker("terminals", a.Terminals.Run)
 	a.closers = append(a.closers, a.Terminals.Shutdown)
 
-	// US5: role mappings and provisioning. The membership (login, module
-	// roles, groups) comes from auth Profiles.Members over a lazily dialled
-	// mesh connection, so the module starts while auth is down; while it is,
-	// syncs, provisioning and the member search answer
+	// US5: role mappings and provisioning over the membership above; while
+	// auth is down, syncs, provisioning and the member search answer
 	// dependency_unavailable and change nothing (spec 006).
-	membership := o.Membership
-	if membership == nil {
-		membership = provisioning.AuthMembership{Client: authv1.NewProfilesClient(&lazyConn{app: a, service: AuthService})}
-	}
 	a.Provisioning = &provisioning.Service{Clusters: a.Clusters, Repo: a.Repo, Users: a.Users, Locks: a.Locks,
 		Membership: membership, Notify: a.Notify, Audit: a.Audit, Events: a.Events, Log: a.Log,
 		Grace: cfg.DeprovisionGrace()}

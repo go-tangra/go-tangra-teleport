@@ -12,7 +12,7 @@ import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiPage, UiAlert, UiCard, UiButton, UiBadge, UiKeyValueTable, UiStatGrid, UiStatTile, UiStatusChip, UiSkeleton, UiDialog, UiForm, UiInput, UiNumberInput, UiSwitch, UiTabs, useConfirm, type KeyValue, type TabItem } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
-import { explain } from '@/api/client'
+import { explain, formErrors } from '@/api/client'
 import { useClusters } from '@/stores/clusters'
 import { updateSchema } from '@/schemas'
 import type { Cluster } from '@/api/types'
@@ -100,7 +100,7 @@ async function remove(): Promise<void> {
 }
 
 const form = useZodForm(updateSchema, {
-  onSubmit: (v) => store.update(id.value, { display_name: v.display_name, settings: { offline_threshold_minutes: v.offline_threshold_minutes, alerts_enabled: v.alerts_enabled } }),
+  onSubmit: formErrors((v) => store.update(id.value, { display_name: v.display_name, settings: { offline_threshold_minutes: v.offline_threshold_minutes, alerts_enabled: v.alerts_enabled } })),
   onSuccess: (c) => {
     cluster.value = c as Cluster
     editing.value = false
@@ -113,11 +113,8 @@ function startEdit(): void {
   editing.value = true
 }
 async function saveEdit(): Promise<void> {
-  try {
-    await form.submit()
-  } catch (e) {
-    form.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await form.submit()
 }
 
 const details = computed<KeyValue[]>(() => {
@@ -195,7 +192,6 @@ const severity = computed(() => {
     <UiDialog v-model="editing" title="Edit cluster" data-test="cluster-edit-dialog">
       <UiForm :form="form">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="form.serverError.value" kind="error">{{ form.serverError.value }}</UiAlert>
           <UiInput v-bind="form.field('display_name')" label="Name" required />
           <UiNumberInput v-bind="form.field('offline_threshold_minutes')" label="Resource offline after (minutes)" :min="5" :max="1440" required />
           <UiSwitch v-bind="form.field('alerts_enabled')" label="Notify about outages and credential expiry" />

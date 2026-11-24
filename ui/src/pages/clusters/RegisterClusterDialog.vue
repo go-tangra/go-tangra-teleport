@@ -5,9 +5,9 @@
 // soon as the dialog closes; the server verifies the cluster before it stores
 // anything, so a refusal here means nothing was saved.
 import { computed, ref, watch } from 'vue'
-import { UiDialog, UiAlert, UiButton, UiInput, UiFilePicker, UiForm } from '@go-tangra/ui'
+import { UiDialog, UiButton, UiInput, UiFilePicker, UiForm } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
-import { explain } from '@/api/client'
+import { formErrors } from '@/api/client'
 import { useClusters } from '@/stores/clusters'
 import { registerSchema, rotateSchema, MAX_IDENTITY_BYTES, type RegisterForm, type RotateForm } from '@/schemas'
 import type { Cluster } from '@/api/types'
@@ -23,17 +23,16 @@ const file = ref<File | null>(null)
 const fileError = ref('')
 
 const form = useZodForm(rotating.value ? rotateSchema : registerSchema, {
-  onSubmit: async (v) => {
+  onSubmit: formErrors(async (v) => {
     if (props.cluster) return store.rotate(props.cluster.id, { credential_kind: 'identity_file', credential: (v as RotateForm).credential })
     const r = v as RegisterForm
     return store.register({ display_name: r.display_name, proxy_addr: r.proxy_addr, credential_kind: 'identity_file', credential: r.credential })
-  },
+  }),
   onSuccess: (c) => {
     emit('saved', c as Cluster)
     close()
   },
 })
-const serverError = computed(() => (form.serverError.value ? form.serverError.value : ''))
 
 async function onFile(f: File | null): Promise<void> {
   file.value = f
@@ -59,11 +58,8 @@ watch(
 )
 
 async function save(): Promise<void> {
-  try {
-    await form.submit()
-  } catch (e) {
-    form.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await form.submit()
 }
 </script>
 
@@ -71,7 +67,6 @@ async function save(): Promise<void> {
   <UiDialog :model-value="modelValue" :title="title" size="lg" persistent data-test="cluster-register" @update:model-value="!$event && close()">
     <UiForm :form="form">
       <div class="flex flex-col gap-4">
-        <UiAlert v-if="serverError" kind="error" data-test="cluster-register-error">{{ serverError }}</UiAlert>
         <p class="text-base-content/80 text-sm">
           <template v-if="rotating">Upload a new identity for the same cluster. It is checked against the cluster before it replaces the current one.</template>
           <template v-else>The platform connects with the identity first and saves nothing if that fails. Create the identity with <code>tctl auth sign --format=file</code> for a user holding the <code>tangra-manager</code> role.</template>

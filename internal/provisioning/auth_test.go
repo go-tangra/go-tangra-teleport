@@ -173,3 +173,46 @@ func TestAuthMembershipStopsOnACursorThatDoesNotMove(t *testing.T) {
 		t.Fatalf("%d requests", len(f.reqs))
 	}
 }
+
+// Addresses resolves notification recipients: one filtered call per 1000
+// ids, the login of every active member, nothing for the others.
+func TestAuthMembershipAddressesUsesTheFilterInChunks(t *testing.T) {
+	f := &fakeProfiles{}
+	var ids []string
+	for i := range 1500 {
+		f.members = append(f.members, detail(i))
+		ids = append(ids, detail(i).GetUserId())
+	}
+	ids = append(ids, "018f3a2b-0000-7000-8000-999999999999") // not a member
+	m := provisioning.AuthMembership{Client: f}
+	got, err := m.Addresses(context.Background(), ct.TenantA, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1500 || got[detail(7).GetUserId()] != "user7@example.com" {
+		t.Fatalf("%d addresses", len(got))
+	}
+	if len(f.reqs) != 2 || len(f.reqs[0].GetUserIds()) != 1000 || len(f.reqs[1].GetUserIds()) != 501 ||
+		f.reqs[0].GetLimit() != 1000 || f.reqs[0].GetTenantId() != ct.TenantA {
+		t.Fatalf("requests %d", len(f.reqs))
+	}
+	if got, err := m.Addresses(context.Background(), ct.TenantA, nil); err != nil || len(got) != 0 || len(f.reqs) != 2 {
+		t.Fatalf("empty: %v %v", got, err)
+	}
+	f.err = status.Error(codes.Unavailable, "down")
+	if _, err := m.Addresses(context.Background(), ct.TenantA, ids[:1]); !errors.Is(err, provisioning.ErrMembershipUnavailable) {
+		t.Fatalf("auth down: %v", err)
+	}
+}
+
+func TestFakeMembershipAddresses(t *testing.T) {
+	f := provisioning.NewFakeMembership(provisioning.Member{UserID: "u1", Login: "a@example.com"}, provisioning.Member{UserID: "u2"})
+	got, err := f.Addresses(context.Background(), ct.TenantA, []string{"u1", "u2", "u3"})
+	if err != nil || len(got) != 1 || got["u1"] != "a@example.com" {
+		t.Fatalf("%v %v", got, err)
+	}
+	f.SetErr(errors.New("down"))
+	if _, err := f.Addresses(context.Background(), ct.TenantA, []string{"u1"}); !errors.Is(err, provisioning.ErrMembershipUnavailable) {
+		t.Fatalf("err %v", err)
+	}
+}

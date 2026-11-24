@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/authz"
+	"github.com/go-tangra/go-tangra-teleport/v4/internal/clusters"
 	ct "github.com/go-tangra/go-tangra-teleport/v4/internal/clusters/clusterstest"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/events"
 	"github.com/go-tangra/go-tangra-teleport/v4/internal/locks"
@@ -592,5 +593,17 @@ func TestStoreFailuresAreCounted(t *testing.T) {
 	}
 	if r, _ := e.row(t, bobID); r.State != repo.UserLockedPendingDeletion {
 		t.Fatalf("row %+v", r)
+	}
+}
+
+// A member holding no mapped role or group is refused on the member field
+// with a message the provision dialog shows as is.
+func TestProvisionUnmappedMemberNamesTheReason(t *testing.T) {
+	e := setup(t)
+	e.auth.Set(provisioning.Member{UserID: carolID, Login: "carol@example.com", Roles: []string{"viewer"}})
+	_, err := e.svc.Provision(admin, e.id, provisioning.ProvisionInput{TangraUserID: carolID})
+	var fe *clusters.FieldError
+	if !errors.As(err, &fe) || fe.Field != "tangra_user_id" || fe.Msg != "this member holds no mapped tangra role or group" {
+		t.Fatalf("err %v", err)
 	}
 }

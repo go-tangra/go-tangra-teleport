@@ -9,7 +9,7 @@ import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiInput, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
-import { explain } from '@/api/client'
+import { explain, formErrors } from '@/api/client'
 import { locksApi } from '@/stores/identity'
 import { lockSchema } from '@/schemas'
 import type { Cluster, LockTargetKind, TeleportLock } from '@/api/types'
@@ -51,9 +51,9 @@ const columns: Column<TeleportLock>[] = [
 
 const creating = ref(false)
 const form = useZodForm(lockSchema, {
-  onSubmit: (v) => {
+  onSubmit: formErrors((v) => {
     return locksApi.create(props.cluster.id, { ...v, expires_at: v.expires_at ? new Date(v.expires_at).toISOString() : undefined })
-  },
+  }),
   onSuccess: () => {
     creating.value = false
     notice.value = 'Lock created. Teleport ends matching sessions within seconds.'
@@ -70,11 +70,8 @@ function openCreate(): void {
   creating.value = true
 }
 async function save(): Promise<void> {
-  try {
-    await form.submit()
-  } catch (e) {
-    form.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await form.submit()
 }
 
 async function remove(l: TeleportLock): Promise<void> {
@@ -110,7 +107,6 @@ async function remove(l: TeleportLock): Promise<void> {
     <UiDialog v-model="creating" title="Create lock" data-test="lock-create">
       <UiForm :form="form">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="form.serverError.value" kind="error">{{ form.serverError.value }}</UiAlert>
           <UiSelect v-bind="form.field('target_kind')" label="Target" :options="kinds" :clearable="false" required data-test="lock-kind" />
           <UiInput v-bind="form.field('target')" label="User, role or host ID" required data-test="lock-target" />
           <UiInput v-bind="form.field('reason')" label="Reason" required hint="Shown to the locked-out user and recorded in the audit trail." data-test="lock-reason" />

@@ -170,6 +170,22 @@ func (f *FakeMembership) Search(_ context.Context, _, query string, limit int) (
 	return out, nil
 }
 
+// Addresses implements notify.Directory over the confirmed members.
+func (f *FakeMembership) Addresses(_ context.Context, _ string, userIDs []string) (map[string]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.memberErr != nil {
+		return nil, unavailable(f.memberErr)
+	}
+	out := map[string]string{}
+	for _, id := range userIDs {
+		if m, ok := f.current[id]; ok && m.Login != "" {
+			out[id] = m.Login
+		}
+	}
+	return out, nil
+}
+
 // Queries returns the search queries seen so far.
 func (f *FakeMembership) Queries() []string {
 	f.mu.Lock()

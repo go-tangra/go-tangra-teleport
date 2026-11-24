@@ -9,7 +9,7 @@ import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiInput, useConfirm, type Column } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
-import { ApiError, explain } from '@/api/client'
+import { ApiError, explain, formErrors } from '@/api/client'
 import { usersApi } from '@/stores/identity'
 import { userSchema, userEditSchema } from '@/schemas'
 import type { Cluster, ResetLink, TeleportUser, UserCreated } from '@/api/types'
@@ -57,9 +57,9 @@ const columns: Column<TeleportUser>[] = [
 const creating = ref(false)
 const created = ref<UserCreated | null>(null)
 const createForm = useZodForm(userSchema, {
-  onSubmit: (v) => {
+  onSubmit: formErrors((v) => {
     return usersApi.create(props.cluster.id, v)
-  },
+  }),
   onSuccess: (r) => {
     created.value = r as UserCreated
     void load()
@@ -76,20 +76,17 @@ function closeCreate(): void {
   creating.value = false
 }
 async function saveCreate(): Promise<void> {
-  try {
-    await createForm.submit()
-  } catch (e) {
-    createForm.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await createForm.submit()
 }
 
 // ---- edit
 const editing = ref<TeleportUser | null>(null)
 const editForm = useZodForm(userEditSchema, {
-  onSubmit: (v) => {
+  onSubmit: formErrors((v) => {
     const u = editing.value as TeleportUser
     return usersApi.update(props.cluster.id, u.name, { ...v, revision: u.revision })
-  },
+  }),
   onSuccess: () => {
     editing.value = null
     notice.value = 'User updated.'
@@ -176,7 +173,6 @@ async function remove(u: TeleportUser): Promise<void> {
       <OneTimeLink v-if="created" :url="created.invite_url" :expires-at="created.invite_expires_at" kind="invite" />
       <UiForm v-else :form="createForm">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="createForm.serverError.value" kind="error">{{ createForm.serverError.value }}</UiAlert>
           <UiInput v-bind="createForm.field('name')" label="Username" required data-test="user-name" />
           <UiInput v-bind="createForm.field('roles')" label="Roles" required hint="Comma-separated Teleport roles, for example access." data-test="user-roles" />
           <UiInput v-bind="createForm.field('logins')" label="Logins" hint="Comma-separated OS logins, for example ubuntu." data-test="user-logins" />
@@ -194,7 +190,6 @@ async function remove(u: TeleportUser): Promise<void> {
     <UiDialog :model-value="!!editing" :title="`Edit ${editing?.name ?? ''}`" data-test="user-edit" @update:model-value="!$event && (editing = null)">
       <UiForm :form="editForm">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="editForm.serverError.value" kind="error">{{ editForm.serverError.value }}</UiAlert>
           <UiInput v-bind="editForm.field('roles')" label="Roles" required />
           <UiInput v-bind="editForm.field('logins')" label="Logins" />
         </div>

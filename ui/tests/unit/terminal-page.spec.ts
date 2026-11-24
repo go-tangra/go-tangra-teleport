@@ -155,6 +155,22 @@ describe('TerminalPage', () => {
     expect(text).toMatch(/Replace/)
   })
 
+  it('shows a refusal the server also explains once', async () => {
+    vi.spyOn(accessApi, 'create').mockRejectedValue(new ApiError(409, 'not_provisioned', {
+      message: 'you have no Teleport user on this cluster; ask an administrator to provision you',
+    }))
+    const w = await open()
+    expect(w.find('[data-test="terminal-error"]').text()).toBe('You have no Teleport user on this cluster. Ask an administrator to provision you.')
+  })
+
+  it('shows an access identity refusal once, with what to do', async () => {
+    vi.spyOn(accessApi, 'create').mockRejectedValue(new ApiError(422, 'access_identity_missing', { message: 'this cluster has no access identity' }))
+    const w = await open()
+    const text = w.find('[data-test="terminal-error"]').text()
+    expect(text.match(/no access identity/gi)).toHaveLength(1)
+    expect(text).toMatch(/upload it on the cluster page/)
+  })
+
   it('needs a node and a login', async () => {
     const create = vi.spyOn(accessApi, 'create')
     const w = await open('')

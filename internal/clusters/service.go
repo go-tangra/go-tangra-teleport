@@ -617,10 +617,10 @@ func (s *Service) notifyWith(ctx context.Context, c repo.Cluster, template, cond
 	for k, v := range extra {
 		vars[k] = v
 	}
-	for _, r := range to {
-		if err := s.Notify.Send(ctx, notify.Message{TenantID: c.TenantID, Template: template, To: r, Vars: vars, CorrelationID: c.ID}); err != nil {
-			s.log().WarnContext(ctx, "cluster notification failed", "cluster_id", c.ID, "template", template, "err", err)
-		}
+	// The recipients are user ids: the notifier resolves them to e-mail
+	// addresses in one lookup and skips those that are no active member.
+	if err := notify.SendEach(ctx, s.Notify, notify.Message{TenantID: c.TenantID, Template: template, Vars: vars, CorrelationID: c.ID}, to); err != nil {
+		s.log().WarnContext(ctx, "cluster notification failed", "cluster_id", c.ID, "template", template, "err", err)
 	}
 }
 
