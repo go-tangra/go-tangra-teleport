@@ -5,8 +5,9 @@ package integration
 // Degraded mode against a real Teleport Community Edition (T119, quickstart
 // scenario 8): notification, scheduler and inventory are stopped. The
 // notification client dials a peer that does not answer, no scheduler ever
-// calls the task executor, and the inventory/asset host lookup and the auth
-// membership source are the production "unavailable" adapters. Cluster
+// calls the task executor, the inventory/asset host lookup is the
+// production "unavailable" adapter and auth is down (provisioning.Unavailable,
+// what AuthMembership answers then). Cluster
 // management (register, users, mappings) keeps working; provisioning and
 // automatic linking report dependency_unavailable; the leased health
 // monitor and the resource watcher keep updating status on their own. A

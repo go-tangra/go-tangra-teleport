@@ -3,8 +3,8 @@ package app
 // T119 (unit level; tests/integration/degraded_test.go runs the same
 // scenario against a real Teleport): quickstart scenario 8 with fakes. With
 // notification failing, the scheduler unreachable (task registration on,
-// nobody answering) and the production wiring of the membership source and
-// the inventory/asset host lookup (both unavailable), cluster management
+// nobody answering), auth unreachable behind the production membership
+// source (AuthMembership) and the inventory/asset host lookup unavailable, cluster management
 // keeps working, the affected features answer dependency_unavailable, and
 // the leased health monitor keeps moving the cluster's status.
 
