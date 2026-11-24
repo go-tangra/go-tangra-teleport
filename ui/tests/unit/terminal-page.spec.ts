@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { drop, RELEASE_GRACE_MS } from '@/stores/terminalClaims'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { ApiError } from '@/api/client'
@@ -89,6 +90,7 @@ beforeEach(() => {
   FakeSource.all = []
 })
 afterEach(() => {
+  drop('c1|node-1|deploy')
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
@@ -96,6 +98,20 @@ afterEach(() => {
 })
 
 describe('TerminalPage', () => {
+  it('a remount of the page reuses its terminal instead of opening another', async () => {
+    vi.useFakeTimers()
+    const create = vi.spyOn(accessApi, 'create').mockResolvedValue(view)
+    const close = vi.spyOn(accessApi, 'close').mockResolvedValue(undefined)
+    const a = await open()
+    a.unmount()
+    const b = await open()
+    vi.advanceTimersByTime(RELEASE_GRACE_MS + 10)
+    await Promise.resolve()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(close).not.toHaveBeenCalled()
+    b.unmount()
+  })
+
   it('creates the terminal, writes output bytes, resumes from the last offset and sends keystrokes', async () => {
     const create = vi.spyOn(accessApi, 'create').mockResolvedValue(view)
     const input = vi.spyOn(accessApi, 'input').mockResolvedValue(undefined)
@@ -135,6 +151,9 @@ describe('TerminalPage', () => {
     vi.advanceTimersByTime(60_000)
     expect(keep).toHaveBeenCalledTimes(1)
     w.unmount()
+    expect(close).not.toHaveBeenCalled() // a remount within the grace keeps it
+    vi.advanceTimersByTime(RELEASE_GRACE_MS + 10)
+    await Promise.resolve()
     expect(close).toHaveBeenCalledWith('c1', view.terminal_id)
     expect(FakeSource.all[0]!.closed).toBe(true)
     expect(terms[0]!.disposed).toBe(true)
