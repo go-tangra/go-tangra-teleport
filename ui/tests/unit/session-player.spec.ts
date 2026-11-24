@@ -112,13 +112,17 @@ describe('SessionPlayer', () => {
       new ApiError(502, 'cluster_unreachable'),
       { events: [], done: true, bytes: 1 },
     ])
-    // Page 2 is prefetched in the background (driven by animation frames):
-    // wait for its failure to show. Slow CI runners need more than the 1 s
-    // default.
+    // Page 2 is prefetched in the background: wait for its failure to show.
+    // The playback loop must not read again by itself (that cleared the
+    // warning and asked once per frame).
     await vi.waitFor(async () => {
       await flushPromises()
       expect(w.find('[data-test="player-partial"]').exists()).toBe(true)
-    }, { timeout: 5000, interval: 50 })
+    })
+    await new Promise((r) => setTimeout(r, 100)) // several animation frames
+    await flushPromises()
+    expect(calls).toHaveLength(2)
+    expect(w.find('[data-test="player-partial"]').exists()).toBe(true)
     expect(w.find('[data-test="player-error"]').exists()).toBe(false)
     await w.find('[data-test="player-retry"]').trigger('click')
     await flushPromises()
