@@ -10,7 +10,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiForm, UiInput, UiPage, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
-import { explain } from '@/api/client'
+import { explain, formErrors } from '@/api/client'
 import { deploymentsApi } from '@/stores/deployments'
 import { draftSchema } from '@/schemas'
 import type { ArtifactName, Cluster, Draft, DraftCheck, DraftInput } from '@/api/types'
@@ -45,10 +45,10 @@ const certModes = [
   { title: 'My own certificate', value: 'own_cert' },
 ]
 const form = useZodForm(draftSchema, {
-  onSubmit: (v) => {
+  onSubmit: formErrors((v) => {
     const body: DraftInput = v
     return draft.value ? deploymentsApi.update(draft.value.id, { ...body, registered_cluster_id: draft.value.registered_cluster_id }) : deploymentsApi.create(body)
-  },
+  }),
   onSuccess: (d) => {
     draft.value = d as Draft
     step.value = 2
@@ -67,11 +67,8 @@ function open(d: Draft): void {
   step.value = d.registered_cluster_id ? 5 : 2
 }
 async function saveInputs(): Promise<void> {
-  try {
-    await form.submit()
-  } catch (e) {
-    form.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await form.submit()
 }
 const acme = computed(() => form.values.cert_mode === 'acme')
 
@@ -170,7 +167,6 @@ startNew()
       <UiCard v-if="step === 1" title="Cluster inputs" data-test="wizard-inputs">
         <UiForm :form="form">
           <div class="flex flex-col gap-4">
-            <UiAlert v-if="form.serverError.value" kind="error">{{ form.serverError.value }}</UiAlert>
             <UiInput v-bind="form.field('domain')" label="Cluster domain" required hint="For example teleport.example.com. Users reach the cluster here." data-test="wizard-domain" />
             <UiSelect v-bind="form.field('cert_mode')" label="Certificate" :options="certModes" :clearable="false" required data-test="wizard-cert" />
             <UiInput v-if="acme" v-bind="form.field('acme_email')" label="ACME contact e-mail" required hint="Let’s Encrypt sends expiry notices here." data-test="wizard-email" />

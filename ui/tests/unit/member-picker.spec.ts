@@ -91,4 +91,12 @@ describe('MODULE_ROLES', () => {
     expect(slugs.length).toBeGreaterThan(0)
     expect(MODULE_ROLES.map((r) => r.slug)).toEqual(slugs)
   })
+
+  it("shows the form's field error", async () => {
+    vi.spyOn(membersApi, 'search').mockResolvedValue({ items: [alice] })
+    const w = mount(MemberPicker, { props: { id: 'member', clusterId: 'c1', label: 'Tangra member', modelValue: alice.user_id, error: 'This member holds no mapped tangra role or group.' } })
+    await flushPromises()
+    expect(combo(w).props('error')).toBe('This member holds no mapped tangra role or group.')
+    expect(w.text()).toContain('This member holds no mapped tangra role or group.')
+  })
 })

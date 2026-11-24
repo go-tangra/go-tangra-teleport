@@ -9,7 +9,7 @@ import { ABILITY_TOKEN } from '@casl/vue'
 import type { AnyAbility } from '@casl/ability'
 import { UiAlert, UiBadge, UiButton, UiCard, UiDataTable, UiDialog, UiForm, UiInput, UiSelect, useConfirm, type Column } from '@go-tangra/ui'
 import { useZodForm } from '@go-tangra/ui/forms'
-import { explain } from '@/api/client'
+import { explain, formErrors } from '@/api/client'
 import { managedApi, mappingsApi } from '@/stores/provisioning'
 import { MODULE_ROLES, mappingEditSchema, mappingSchema, provisionSchema } from '@/schemas'
 import MemberPicker from '@/components/MemberPicker.vue'
@@ -68,7 +68,7 @@ const managedColumns: Column<ManagedUser>[] = [
 // ---- mapping editor
 const creating = ref(false)
 const createForm = useZodForm(mappingSchema, {
-  onSubmit: (v) => mappingsApi.create(props.cluster.id, v),
+  onSubmit: formErrors((v) => mappingsApi.create(props.cluster.id, v)),
   onSuccess: () => {
     creating.value = false
     notice.value = 'Mapping saved. Matching users are provisioned at the next sync.'
@@ -91,16 +91,13 @@ function openCreate(): void {
   creating.value = true
 }
 async function saveCreate(): Promise<void> {
-  try {
-    await createForm.submit()
-  } catch (e) {
-    createForm.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await createForm.submit()
 }
 
 const editing = ref<RoleMapping | null>(null)
 const editForm = useZodForm(mappingEditSchema, {
-  onSubmit: (v) => mappingsApi.update(props.cluster.id, editing.value!.id, v),
+  onSubmit: formErrors((v) => mappingsApi.update(props.cluster.id, editing.value!.id, v)),
   onSuccess: () => {
     editing.value = null
     notice.value = 'Mapping updated. Users are brought in line at the next sync.'
@@ -112,11 +109,8 @@ function openEdit(m: RoleMapping): void {
   editing.value = m
 }
 async function saveEdit(): Promise<void> {
-  try {
-    await editForm.submit()
-  } catch (e) {
-    editForm.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await editForm.submit()
 }
 
 async function removeMapping(m: RoleMapping): Promise<void> {
@@ -139,7 +133,7 @@ async function removeMapping(m: RoleMapping): Promise<void> {
 // ---- provision one member, sync now
 const provisioning = ref(false)
 const provisionForm = useZodForm(provisionSchema, {
-  onSubmit: (v) => managedApi.provision(props.cluster.id, v.tangra_user_id),
+  onSubmit: formErrors((v) => managedApi.provision(props.cluster.id, v.tangra_user_id)),
   onSuccess: () => {
     provisioning.value = false
     notice.value = 'User provisioned. The invite was sent to them through tangra notifications.'
@@ -151,11 +145,8 @@ function openProvision(): void {
   provisioning.value = true
 }
 async function saveProvision(): Promise<void> {
-  try {
-    await provisionForm.submit()
-  } catch (e) {
-    provisionForm.setServerError(explain(e))
-  }
+  // submit() reports every refusal on the form itself (formErrors).
+  await provisionForm.submit()
 }
 
 const syncing = ref(false)
@@ -220,7 +211,6 @@ async function syncNow(): Promise<void> {
     <UiDialog v-model="creating" title="Add role mapping" data-test="mapping-create">
       <UiForm :form="createForm">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="createForm.serverError.value" kind="error">{{ createForm.serverError.value }}</UiAlert>
           <UiSelect v-bind="createForm.field('subject_kind')" label="Map" :options="kinds" :clearable="false" required data-test="mapping-kind" />
           <UiSelect
             v-if="createForm.values.subject_kind === 'module_role'" v-bind="createForm.field('subject_ref')" label="Module role"
@@ -240,7 +230,6 @@ async function syncNow(): Promise<void> {
     <UiDialog :model-value="editing !== null" :title="editing ? 'Edit mapping for ' + editing.subject_ref : ''" data-test="mapping-edit" @update:model-value="(v: boolean) => { if (!v) editing = null }">
       <UiForm :form="editForm">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="editForm.serverError.value" kind="error">{{ editForm.serverError.value }}</UiAlert>
           <UiInput v-bind="editForm.field('teleport_roles')" label="Teleport roles" required data-test="mapping-edit-roles" />
           <UiInput v-bind="editForm.field('logins')" label="Logins" data-test="mapping-edit-logins" />
         </div>
@@ -254,7 +243,6 @@ async function syncNow(): Promise<void> {
     <UiDialog v-model="provisioning" title="Provision a tangra user" data-test="provision-dialog">
       <UiForm :form="provisionForm">
         <div class="flex flex-col gap-4">
-          <UiAlert v-if="provisionForm.serverError.value" kind="error">{{ provisionForm.serverError.value }}</UiAlert>
           <MemberPicker
             v-if="provisioning" v-bind="provisionForm.field('tangra_user_id')" :cluster-id="cluster.id" label="Tangra member" required data-test="provision-user"
           />

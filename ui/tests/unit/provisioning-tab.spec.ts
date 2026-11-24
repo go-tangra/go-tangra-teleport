@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { managedApi, mappingsApi, membersApi } from '@/stores/provisioning'
+import { ApiError } from '@/api/client'
 import type { Cluster, ManagedUser } from '@/api/types'
 
 const { default: ProvisioningTab } = await import('@/pages/clusters/tabs/ProvisioningTab.vue')
@@ -55,6 +56,40 @@ describe('ProvisioningTab', () => {
     const ref = w.findAllComponents({ name: 'UiInput' }).find((c) => c.attributes('data-test') === 'mapping-ref')
     expect(ref).toBeTruthy()
     expect(ref!.props('modelValue')).toBe('')
+    w.unmount()
+  })
+
+  it("shows the server's refusal once, on the member field", async () => {
+    const { w } = await render()
+    vi.spyOn(managedApi, 'provision').mockRejectedValue(new ApiError(422, 'validation_failed', {
+      field: 'tangra_user_id', message: 'this member holds no mapped tangra role or group',
+    }))
+    await w.find('[data-test="provision-new"]').trigger('click')
+    await flushPromises()
+    const picker = w.findComponent({ name: 'MemberPicker' })
+    picker.findComponent({ name: 'UiCombobox' }).vm.$emit('update:modelValue', bob.user_id)
+    await flushPromises()
+    await w.findAllComponents({ name: 'UiButton' }).find((b) => b.attributes('data-test') === 'provision-save')!.trigger('click')
+    await flushPromises()
+    const dialog = document.body.querySelector('[data-test="provision-dialog"]')?.closest('dialog, [role="dialog"]') ?? document.body
+    const text = dialog.textContent ?? ''
+    expect(text).not.toContain('Please check the highlighted fields.')
+    expect(text.split('This member holds no mapped tangra role or group.').length - 1).toBe(1)
+    expect(picker.findComponent({ name: 'UiCombobox' }).props('error')).toBe('This member holds no mapped tangra role or group.')
+    w.unmount()
+  })
+
+  it('shows any other refusal of the provision dialog once', async () => {
+    const { w } = await render()
+    vi.spyOn(managedApi, 'provision').mockRejectedValue(new ApiError(503, 'dependency_unavailable', { message: 'the invite could not be delivered' }))
+    await w.find('[data-test="provision-new"]').trigger('click')
+    await flushPromises()
+    w.findComponent({ name: 'MemberPicker' }).findComponent({ name: 'UiCombobox' }).vm.$emit('update:modelValue', bob.user_id)
+    await flushPromises()
+    await w.findAllComponents({ name: 'UiButton' }).find((b) => b.attributes('data-test') === 'provision-save')!.trigger('click')
+    await flushPromises()
+    const text = document.body.textContent ?? ''
+    expect(text.split('A platform service the module needs is unavailable.').length - 1).toBe(1)
     w.unmount()
   })
 })
