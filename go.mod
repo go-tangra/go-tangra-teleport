@@ -10,10 +10,10 @@ require (
 	github.com/go-tangra/go-tangra-inventory/sdk/v4 v4.5.1-0.20261120065852-ac8eac58acce
 	github.com/go-tangra/go-tangra-lcm/sdk/v4 v4.2.0
 	github.com/go-tangra/go-tangra-notification/sdk/v4 v4.2.0
-	github.com/go-tangra/go-tangra-portal/sdk/v4 v4.2.0
+	github.com/go-tangra/go-tangra-portal/sdk/v4 v4.2.1
 	github.com/go-tangra/go-tangra-scheduler/sdk/v4 v4.0.0
 	github.com/go-tangra/go-tangra-warden/sdk/v4 v4.0.0
-	github.com/go-tangra/go-tangra/v4 v4.10.1
+	github.com/go-tangra/go-tangra/v4 v4.10.2
 	github.com/gravitational/teleport/api v0.0.0-20260825163510-1283425b60ec
 	github.com/gravitational/trace v1.5.4
 	github.com/jackc/pgx/v5 v5.11.0
